@@ -4,12 +4,9 @@ from tensorflow.keras.layers import Conv2D, Dense, Flatten, InputLayer
 
 
 class DeepQNetwork:
-    def __init__(self, env, optimizer, discount):
-        self.optimizer = optimizer
-        self.discount = discount
-
-        def model():
-            return Sequential([
+    def __init__(self, env, optimizer):
+        self._optimizer = optimizer
+        self._network = Sequential([
                 InputLayer(env.observation_space.shape),
                 Conv2D(32, kernel_size=8, strides=4, activation='relu'),
                 Conv2D(64, kernel_size=4, strides=2, activation='relu'),
@@ -18,11 +15,7 @@ class DeepQNetwork:
                 Dense(512, activation='relu'),
                 Dense(env.action_space.n),
             ])
-        self._main_net = model()
-        self._target_net = model()
-
-        self._main_vars = self._main_net.trainable_variables
-        self._target_vars = self._target_net.trainable_variables
+        self._vars = self._network.trainable_variables
 
     def _preprocess_states(self, states):
         if states.dtype == tf.uint8:
@@ -31,28 +24,15 @@ class DeepQNetwork:
 
     @tf.function
     def predict(self, states):
-        return self._main_net(self._preprocess_states(states))
-
-    def _predict_target(self, states):
-        return self._target_net(self._preprocess_states(states))
+        return self._network(self._preprocess_states(states))
 
     @tf.function
-    def train(self, states, actions, rewards, next_states, dones):
-        next_Q = self._predict_target(next_states)
-        max_Q = tf.reduce_max(next_Q, axis=1)
-
+    def train(self, states, actions, returns):
         with tf.GradientTape() as tape:
             Q = self.predict(states)
             mask = tf.one_hot(actions, depth=Q.shape[1])
             Q = tf.reduce_sum(mask * Q, axis=1)
+            loss = tf.keras.losses.MSE(returns, Q)
 
-            targets = rewards + self.discount * (1.0 - dones) * max_Q
-            loss = tf.keras.losses.MSE(targets, Q)
-
-        gradients = tape.gradient(loss, self._main_vars)
-        self.optimizer.apply_gradients(zip(gradients, self._main_vars))
-
-    @tf.function
-    def update_target_net(self):
-        for var, target in zip(self._main_vars, self._target_vars):
-            target.assign(var)
+        gradients = tape.gradient(loss, self._vars)
+        self._optimizer.apply_gradients(zip(gradients, self._vars))

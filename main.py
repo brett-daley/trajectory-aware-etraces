@@ -20,13 +20,17 @@ class DQNAgent:
         self._env = env
 
         optimizer = RMSprop(lr=2.5e-4, rho=0.95, momentum=0.95, epsilon=0.01)
-        self._dqn = DeepQNetwork(env, optimizer, discount=0.99)
-        self._replay_memory = ReplayMemory(env, capacity=1_000_000)
+        self._dqn = DeepQNetwork(env, optimizer)
+        self._replay_memory = ReplayMemory(env, capacity=1_000_000, cache_size=80_000,
+                                           discount=0.99, return_estimator=None)
 
         self._prepopulate = 50_000
         self._train_freq = 4
         self._batch_size = 32
         self._target_update_freq = 10_000
+
+        # Ensure that the cache gets refreshed before training starts
+        assert self._prepopulate % self._target_update_freq == 0
 
     def policy(self, t, state):
         assert t > 0, "timestep must start at 1"
@@ -52,12 +56,12 @@ class DQNAgent:
         assert t > 0, "timestep must start at 1"
         self._replay_memory.save(state, action, reward, done)
 
-        if t % self._target_update_freq == 1:
-            self._dqn.update_target_net()
-
         if t <= self._prepopulate:
             # We're still pre-populating the replay memory
             return
+
+        if t % self._target_update_freq == 1:
+            self._replay_memory.refresh_cache()
 
         if t % self._train_freq == 1:
             minibatch = self._replay_memory.sample(self._batch_size)

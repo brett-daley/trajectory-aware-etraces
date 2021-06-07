@@ -1,29 +1,95 @@
+from collections import deque
+
 import numpy as np
 
 
 class ReplayMemory:
-    def __init__(self, env, capacity):
-        self._capacity = capacity
+    def __init__(self, env, capacity, cache_size, discount, return_estimator):
+        assert cache_size <= capacity, "cache size cannot be larger than memory capacity"
         self._size_now = 0
-        self._pointer = 0
+        self._capacity = capacity
 
-        self.states = np.empty(shape=[capacity, *env.observation_space.shape],
-                               dtype=env.observation_space.dtype)
-        self.actions = np.empty(shape=[capacity], dtype=env.action_space.dtype)
-        self.rewards = np.empty(capacity, dtype=np.float32)
-        self.dones = np.empty(capacity, dtype=np.float32)
+        self._discount = discount
+        self._return_estimator = return_estimator
+
+        self._cache = ReplayCache(cache_size)
+        self._completed_episodes = deque()
+        self._current_episode = Episode()
 
     def save(self, state, action, reward, done):
-        p = self._pointer
-        self.states[p], self.actions[p], self.rewards[p], self.dones[p] = state, action, reward, done
-        self._size_now = min(self._size_now + 1, self._capacity)
-        self._pointer = (p + 1) % self._capacity
+        self._current_episode.append_transition(state, action, reward, done)
+        if done:
+            self._completed_episodes.append(self._current_episode)
+            self._size_now += len(self._current_episode)
+            self._current_episode = Episode()
+
+        # Memory management
+        while self._size_now > self._capacity:
+            episode = self._completed_episodes.popleft()
+            self._size_now -= len(episode)
 
     def sample(self, batch_size):
-        j = np.random.randint(self._size_now - 1, size=batch_size)
-        j = (self._pointer + j) % self._size_now
-        return (self.states[j],
-                self.actions[j],
-                self.rewards[j],
-                self.states[(j + 1) % self._size_now],
-                self.dones[j])
+        return self._cache.sample(batch_size)
+
+    def refresh_cache(self):
+        self._cache.refresh(self._completed_episodes)
+
+
+class ReplayCache:
+    def __init__(self, capacity):
+        self._capacity = capacity
+        self._states = None
+        self._actions = None
+        self._returns = None
+
+    def refresh(self, episode_list):
+        states, actions, rewards, dones = [], [], [], []
+        while True:
+            # Sample a random episode
+            i = np.random.randint(len(episode_list))
+            episode = episode_list[i]
+
+            # If adding this episode will make the cache too large, exit the loop
+            if len(states) + len(episode) > self._capacity:
+                break
+
+            # Add all transitions from the episode to the cache
+            states.extend(episode.states)
+            actions.extend(episode.actions)
+            rewards.extend(episode.rewards)
+            dones.extend(episode.dones)
+
+        # Convert to numpy arrays for efficient return calculation and sampling
+        states = np.stack(states)
+        actions = np.stack(actions)
+        rewards = np.stack(rewards)
+        dones = np.stack(dones).astype(np.float32)
+        returns = np.zeros_like(rewards)
+
+        # TODO: Compute Q-values and returns here
+
+        # Save the values needed for sampling minibatches
+        self._states, self._actions, self._returns = states, actions, returns
+
+    def sample(self, batch_size):
+        assert self._states is not None, "replay cache must be refreshed before sampling"
+        j = np.random.randint(len(self._states), size=batch_size)
+        return (self._states[j], self._actions[j], self._returns[j])
+
+
+class Episode:
+    def __init__(self):
+        self.states, self.actions, self.rewards, self.dones = [], [], [], []
+        self._already_done = False
+
+    def __len__(self):
+        return len(self.states)
+
+    def append_transition(self, state, action, reward, done):
+        assert not self._already_done
+        self._already_done = done or self._already_done
+
+        self.states.append(state)
+        self.actions.append(action)
+        self.rewards.append(reward)
+        self.dones.append(done)
