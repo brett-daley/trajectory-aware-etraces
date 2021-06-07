@@ -9,7 +9,7 @@ from tensorflow.keras.optimizers import RMSprop
 
 from dqn import atari_env
 from dqn.deep_q_network import DeepQNetwork
-from dqn.replay_memory import ReplayMemory
+from dqn.experience_replay.replay_memory import ReplayMemory
 
 os.environ['TF_DETERMINISTIC_OPS'] = '1'
 
