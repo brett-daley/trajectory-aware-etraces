@@ -6,10 +6,10 @@ from gym.envs.atari.atari_env import AtariEnv
 from gym.spaces import Box
 import numpy as np
 
-from fast_dqn.auto_monitor import AutoMonitor
+from dqn.auto_monitor import AutoMonitor
 
 
-def make(game, interpolation='nearest'):
+def make(game):
     env = AtariEnv(game, frameskip=4, obs_type='image')
     env = AutoMonitor(env)
     if 'FIRE' in env.unwrapped.get_action_meanings():
@@ -17,7 +17,7 @@ def make(game, interpolation='nearest'):
     env = NoopResetWrapper(env)
     env = EpisodicLifeWrapper(env)
     env = ClippedRewardWrapper(env)
-    env = PreprocessImageWrapper(env, interpolation)
+    env = PreprocessImageWrapper(env)
     env = HistoryWrapper(env, history_len=4)
     return env
 
@@ -126,11 +126,3 @@ class PreprocessImageWrapper(gym.ObservationWrapper):
 
     def _resize(self, observation):
         return cv2.resize(observation, self._shape[:2][::-1], interpolation=self._interpolation)
-
-
-class FasterPreprocessImageWrapper(PreprocessImageWrapper):
-    def __init__(self, env):
-        super().__init__(env, shape=(104, 80, 1))
-
-    def _resize(self, observation):
-        return super()._resize(observation[1:-1])
