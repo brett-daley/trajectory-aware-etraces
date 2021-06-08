@@ -15,7 +15,7 @@ os.environ['TF_DETERMINISTIC_OPS'] = '1'
 
 
 class DQNAgent:
-    def __init__(self, env, **kwargs):
+    def __init__(self, env, return_estimator='Qlambda-0', **kwargs):
         assert isinstance(env.action_space, Discrete)
         self._env = env
 
@@ -23,7 +23,7 @@ class DQNAgent:
         self._dqn = DeepQNetwork(env, optimizer)
         self._replay_memory = ReplayMemory(self._dqn, capacity=1_000_000,
                                            cache_size=80_000, block_size=40_000,
-                                           discount=0.99, return_estimator=None)
+                                           discount=0.99, return_estimator=return_estimator)
 
         self._prepopulate = 50_000
         self._train_freq = 4
@@ -33,11 +33,14 @@ class DQNAgent:
         # Ensure that the cache gets refreshed before training starts
         assert self._prepopulate % self._target_update_freq == 0
 
+        # Parameter for the epsilon-greedy exploration policy
+        # Updated whenever the replay memory cache is refreshed
+        self._epsilon = self._epsilon_schedule(t=1)
+
     def policy(self, t, state):
         assert t > 0, "timestep must start at 1"
-        epsilon = self._epsilon_schedule(t)
         # With probability epsilon, take a random action
-        if np.random.rand() < epsilon:
+        if np.random.rand() < self._epsilon:
             return self._env.action_space.sample()
         # Else, take the predicted best action (greedy)
         return self._greedy_action(state)
@@ -55,14 +58,15 @@ class DQNAgent:
 
     def update(self, t, state, action, reward, done, next_state):
         assert t > 0, "timestep must start at 1"
-        self._replay_memory.save(state, action, reward, done)
+        self._replay_memory.save(state, action, reward, done, self._epsilon)
 
         if t <= self._prepopulate:
             # We're still pre-populating the replay memory
             return
 
         if t % self._target_update_freq == 1:
-            self._replay_memory.refresh_cache()
+            self._epsilon = self._epsilon_schedule(t)
+            self._replay_memory.refresh_cache(self._epsilon)
 
         if t % self._train_freq == 1:
             minibatch = self._replay_memory.sample(self._batch_size)
@@ -72,6 +76,7 @@ class DQNAgent:
 def parse_kwargs():
     parser = ArgumentParser()
     parser.add_argument('--game', type=str, default='pong')
+    parser.add_argument('--return-estimator', type=str, default='Qlambda-0')
     parser.add_argument('--timesteps', type=int, default=5_000_000)
     parser.add_argument('--seed', type=int, default=0)
     return vars(parser.parse_args())
