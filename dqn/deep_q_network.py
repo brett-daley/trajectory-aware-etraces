@@ -5,6 +5,7 @@ from tensorflow.keras.layers import Conv2D, Dense, Flatten, InputLayer
 
 class DeepQNetwork:
     def __init__(self, env, optimizer):
+        self.n = env.action_space.n
         self._optimizer = optimizer
         self._network = Sequential([
                 InputLayer(env.observation_space.shape),
@@ -13,7 +14,7 @@ class DeepQNetwork:
                 Conv2D(64, kernel_size=3, strides=1, activation='relu'),
                 Flatten(),
                 Dense(512, activation='relu'),
-                Dense(env.action_space.n),
+                Dense(self.n),
             ])
         self._vars = self._network.trainable_variables
 

@@ -21,7 +21,8 @@ class DQNAgent:
 
         optimizer = RMSprop(lr=2.5e-4, rho=0.95, momentum=0.95, epsilon=0.01)
         self._dqn = DeepQNetwork(env, optimizer)
-        self._replay_memory = ReplayMemory(env, capacity=1_000_000, cache_size=80_000,
+        self._replay_memory = ReplayMemory(self._dqn, capacity=1_000_000,
+                                           cache_size=80_000, block_size=40_000,
                                            discount=0.99, return_estimator=None)
 
         self._prepopulate = 50_000

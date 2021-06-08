@@ -4,15 +4,12 @@ import numpy as np
 
 
 class ReplayMemory:
-    def __init__(self, env, capacity, cache_size, discount, return_estimator):
+    def __init__(self, dqn, capacity, cache_size, block_size, discount, return_estimator):
         assert cache_size <= capacity, "cache size cannot be larger than memory capacity"
         self._size_now = 0
         self._capacity = capacity
 
-        self._discount = discount
-        self._return_estimator = return_estimator
-
-        self._cache = ReplayCache(cache_size)
+        self._cache = ReplayCache(dqn, cache_size, block_size, discount, return_estimator)
         self._completed_episodes = deque()
         self._current_episode = Episode()
 
@@ -36,8 +33,17 @@ class ReplayMemory:
 
 
 class ReplayCache:
-    def __init__(self, capacity):
+    def __init__(self, dqn, capacity, block_size, discount, return_estimator):
+        assert block_size <= capacity, "block size cannot be larger than cache size"
+        assert (capacity % block_size) == 0, "block size must evenly divide cache size"
+        assert 0.0 <= discount <= 1.0, "discount must be in the interval [0,1]"
+        self._dqn = dqn
         self._capacity = capacity
+        self._block_size = block_size
+
+        self._discount = discount
+        self._return_estimator = return_estimator
+
         self._states = None
         self._actions = None
         self._returns = None
@@ -63,10 +69,27 @@ class ReplayCache:
         states = np.stack(states)
         actions = np.stack(actions)
         rewards = np.stack(rewards)
-        dones = np.stack(dones).astype(np.float32)
-        returns = np.zeros_like(rewards)
+        done_mask = 1.0 - np.array(dones, dtype=np.float32)
 
-        # TODO: Compute Q-values and returns here
+        # Get Q-values from the DQN
+        q_values = np.zeros_like(rewards, shape=[*rewards.shape, self._dqn.n])
+        for i in range(self._capacity // self._block_size):
+            s = slice(i * self._block_size, (i + 1) * self._block_size)
+            q_values[s] = self._dqn.predict(states[s])
+        # TODO: Not all returns should use the max
+        q_values = np.max(q_values, axis=1)
+
+        # Start with the 1-step returns
+        assert dones[-1]
+        returns = rewards.copy()
+        returns[:-1] += self._discount * (done_mask * q_values)[1:]
+
+        # Now propagate the traces backwards to generate the multistep returns
+        td_errors = returns - q_values
+        for i in reversed(range(len(returns) - 1)):
+            if not dones[i]:
+                trace = 0.0  # TODO: Replace with callable function
+                returns[i] += self._discount * trace * td_errors[i+1]
 
         # Save the values needed for sampling minibatches
         self._states, self._actions, self._returns = states, actions, returns
