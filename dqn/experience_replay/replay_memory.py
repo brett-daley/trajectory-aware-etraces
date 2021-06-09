@@ -80,22 +80,26 @@ class ReplayCache:
             s = slice(i * self._block_size, (i + 1) * self._block_size)
             q_values[s] = self._dqn.predict(states[s])
 
-        q_values_taken = q_values[np.arange(len(q_values)), actions]
+        # Compute the multistep returns
+        assert dones[-1], "trajectory must end at an episode boundary"
+        returns = rewards.copy()  # All returns start with the reward
+        for i in reversed(range(len(returns))):
+            if dones[i]:
+                # This is a terminal transition so we're already done
+                continue
 
-        # Start with the 1-step returns
-        assert dones[-1]
-        returns = rewards.copy()
-        # TODO: We should compute the expected value here like Tree Backup does
-        returns[:-1] += self._discount * (done_mask * q_values_taken)[1:]
+            # Compute the action probabilities (assuming epsilon-greedy policies)
+            pi = epsilon_greedy_probabilities(q_values[i], pi_epsilon)
+            mu = epsilon_greedy_probabilities(q_values[i], mu_epsilons[i])
 
-        # Now propagate the traces backwards to generate the multistep returns
-        td_errors = returns - q_values_taken
-        for i in reversed(range(len(returns) - 1)):
-            if not dones[i]:
-                pi = epsilon_greedy_probabilities(q_values[i], pi_epsilon)
-                mu = epsilon_greedy_probabilities(q_values[i], mu_epsilons[i])
-                trace = self._compute_trace(actions[i], pi, mu)
-                returns[i] += self._discount * trace * td_errors[i+1]
+            # Add the discounted expected value of the next state
+            returns[i] += self._discount * (pi * q_values[i+1]).sum()
+
+            # Recursion: Propagate the discounted future multistep TD error backwards,
+            # weighted by the current trace
+            trace = self._compute_trace(actions[i], pi, mu)
+            next_td_error = returns[i+1] - q_values[i+1, actions[i+1]]
+            returns[i] += self._discount * trace * next_td_error
 
         # Save the values needed for sampling minibatches
         self._states, self._actions, self._returns = states, actions, returns
