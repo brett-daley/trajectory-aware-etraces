@@ -46,44 +46,62 @@ class ReplayCache:
         self._discount = discount
         self._compute_trace = get_trace_function(return_estimator)
 
-        self._states = None
-        self._actions = None
-        self._returns = None
+        # Number of samples currently in the cache (may be less than capacity)
+        self._size_now = 0
 
     def refresh(self, episode_list, pi_epsilon):
-        states, actions, rewards, dones, mu_epsilons = [], [], [], [], []
+        N = 0
         while True:
             # Sample a random episode
-            i = np.random.randint(len(episode_list))
-            episode = episode_list[i]
+            episode = np.random.choice(episode_list)
 
             # If adding this episode will make the cache too large, exit the loop
-            if len(states) + len(episode) > self._capacity:
+            if N + len(episode) > self._capacity:
                 break
 
-            # Add all transitions from the episode to the cache
-            states.extend(episode.states)
-            actions.extend(episode.actions)
-            rewards.extend(episode.rewards)
-            dones.extend(episode.dones)
-            mu_epsilons.extend(episode.epsilons)
+            states, actions, rewards, dones, mu_epsilons = map(np.array,
+                [episode.states, episode.actions, episode.rewards, episode.dones, episode.epsilons])
 
-        # Convert to numpy arrays for efficient return calculation and sampling
-        states = np.stack(states)
-        actions = np.stack(actions)
-        rewards = np.stack(rewards)
-        done_mask = 1.0 - np.array(dones, dtype=np.float32)
+            if not hasattr(self, '_states'):
+                # Allocate arrays only once to save time on the next iterations
+
+                def allocate_like(x, shape=None):
+                    if shape is None:
+                        shape = (self._capacity, *x.shape[1:])
+                    return np.empty_like(x, shape=shape)
+
+                self._states = allocate_like(states)
+                self._actions = allocate_like(actions)
+                self._rewards = allocate_like(rewards)
+                self._dones = allocate_like(dones)
+                self._mu_epsilons = allocate_like(mu_epsilons)
+                self._q_values = allocate_like(self._rewards, shape=[self._capacity, self._dqn.n])
+                self._returns = self._rewards.copy()
+
+            # Add all transitions from the episode to the cache
+            s = slice(N, N + len(episode))
+            self._states[s] = states
+            self._actions[s] = actions
+            self._rewards[s] = rewards
+            self._dones[s] = dones
+            self._mu_epsilons[s] = mu_epsilons
+            N += len(episode)
+
+        # Shorter names to make the code easier to read below
+        states, actions, rewards, dones, mu_epsilons, q_values, returns = (
+            self._states, self._actions, self._rewards, self._dones,
+            self._mu_epsilons, self._q_values, self._returns)
 
         # Get Q-values from the DQN
-        q_values = np.zeros_like(rewards, shape=[len(rewards), self._dqn.n])
         for i in range(self._capacity // self._block_size):
             s = slice(i * self._block_size, (i + 1) * self._block_size)
             q_values[s] = self._dqn.predict(states[s])
 
         # Compute the multistep returns
-        assert dones[-1], "trajectory must end at an episode boundary"
-        returns = rewards.copy()  # All returns start with the reward
-        for i in reversed(range(len(returns))):
+        assert dones[N-1], "trajectory must end at an episode boundary"
+        np.copyto(dst=returns, src=rewards)  # All returns start with the reward
+        for j in range(N):
+            i = (N - 1) - j
             if dones[i]:
                 # This is a terminal transition so we're already done
                 continue
@@ -101,12 +119,12 @@ class ReplayCache:
             next_td_error = returns[i+1] - q_values[i+1, actions[i+1]]
             returns[i] += self._discount * trace * next_td_error
 
-        # Save the values needed for sampling minibatches
-        self._states, self._actions, self._returns = states, actions, returns
+        # Update the cache size for sampling
+        self._size_now = N
 
     def sample(self, batch_size):
         assert self._states is not None, "replay cache must be refreshed before sampling"
-        j = np.random.randint(len(self._states), size=batch_size)
+        j = np.random.randint(self._size_now, size=batch_size)
         return (self._states[j], self._actions[j], self._returns[j])
 
 
