@@ -1,5 +1,3 @@
-from collections import deque
-
 import numpy as np
 
 from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_probabilities
@@ -10,138 +8,142 @@ class ReplayMemory:
         assert cache_size <= capacity, "cache size cannot be larger than memory capacity"
         self._size_now = 0
         self._capacity = capacity
-
-        self._cache = ReplayCache(dqn, cache_size, block_size, discount, return_estimator)
-        self._completed_episodes = deque()
-        self._current_episode = Episode()
-
-    def save(self, state, action, reward, done, epsilon):
-        self._current_episode.append_transition(state, action, reward, done, epsilon)
-        if done:
-            self._completed_episodes.append(self._current_episode)
-            self._size_now += len(self._current_episode)
-            self._current_episode = Episode()
-
-        # Memory management
-        while self._size_now > self._capacity:
-            episode = self._completed_episodes.popleft()
-            self._size_now -= len(episode)
-
-    def sample(self, batch_size):
-        return self._cache.sample(batch_size)
-
-    def refresh_cache(self, pi_epsilon):
-        self._cache.refresh(self._completed_episodes, pi_epsilon)
-
-
-class ReplayCache:
-    def __init__(self, dqn, capacity, block_size, discount, return_estimator):
-        assert block_size <= capacity, "block size cannot be larger than cache size"
-        assert (capacity % block_size) == 0, "block size must evenly divide cache size"
-        assert 0.0 <= discount <= 1.0, "discount must be in the interval [0,1]"
-        self._dqn = dqn
-        self._capacity = capacity
+        self._cache_size = cache_size
         self._block_size = block_size
 
+        self._dqn = dqn
         self._discount = discount
         self._compute_trace = get_trace_function(return_estimator)
 
-        # Number of samples currently in the cache (may be less than capacity)
-        self._size_now = 0
+        self._states = None
+        self._actions = np.empty(shape=[capacity], dtype=np.int64)
+        self._rewards = np.empty(capacity, dtype=np.float64)
+        self._dones = np.empty(capacity, dtype=np.bool)
+        self._mu_epsilons = np.empty_like(self._rewards)
 
-    def refresh(self, episode_list, pi_epsilon):
-        N = 0
+        self._front = 0  # Points to the oldest experience
+        self._back = 0   # Points to the next experience to be overwritten
+
+    def save(self, state, action, reward, done, epsilon):
+        if self._states is None:
+            self._states = np.empty(shape=[self._capacity, *state.shape], dtype=state.dtype)
+
+        if self._size_now >= self._capacity:
+            # Delete the oldest episode
+            while not self._dones[self._front]:
+                self._pop()
+            assert self._dones[self._front]
+            self._pop()
+            assert not self._dones[self._front]
+
+        self._push((state, action, reward, done, epsilon))
+
+    def _push(self, transition):
+        b = self._back
+        self._states[b], self._actions[b], self._rewards[b], self._dones[b], self._mu_epsilons[b] = transition
+        self._back = (self._back + 1) % self._capacity
+        self._size_now += 1
+
+    def _pop(self):
+        self._front = (self._front + 1) % self._capacity
+        self._size_now -= 1
+
+        if hasattr(self, '_cache_indices'):
+            self._cache_indices -= 1
+            while self._cache_indices[self._obsolete] < 0:
+                self._obsolete += 1
+
+    def sample(self, batch_size):
+        assert self._states is not None, "replay cache must be refreshed before sampling"
+        j = np.random.randint(low=self._obsolete,
+            high=len(self._cache_indices), size=batch_size)
+        assert (self._cache_indices[j] >= 0).all()
+        x = self._absolute(self._cache_indices[j])
+        return (self._states[x], self._actions[x], self._returns[j])
+
+    def _absolute(self, i):
+        return (self._front + i) % self._capacity
+
+    def refresh_cache(self, pi_epsilon):
+        starts, ends, lengths = self._find_episode_boundaries()
+
+        # Sample episodes randomly until we have enough samples for the cache
+        # Save the relative indices of each experience for each episode
+        indices = []
         while True:
-            # Sample a random episode
-            episode = np.random.choice(episode_list)
+            # Sample a random episode (let k be its ID)
+            k = np.random.randint(len(starts))
+            start, end, length = starts[k], ends[k], lengths[k]
 
             # If adding this episode will make the cache too large, exit the loop
-            if N + len(episode) > self._capacity:
+            if len(indices) + length > self._cache_size:
                 break
 
-            states, actions, rewards, dones, mu_epsilons = map(np.array,
-                [episode.states, episode.actions, episode.rewards, episode.dones, episode.epsilons])
-
-            if not hasattr(self, '_states'):
-                # Allocate arrays only once to save time on the next iterations
-
-                def allocate_like(x, shape=None):
-                    if shape is None:
-                        shape = (self._capacity, *x.shape[1:])
-                    return np.empty_like(x, shape=shape)
-
-                self._states = allocate_like(states)
-                self._actions = allocate_like(actions)
-                self._rewards = allocate_like(rewards)
-                self._dones = allocate_like(dones)
-                self._mu_epsilons = allocate_like(mu_epsilons)
-                self._q_values = allocate_like(self._rewards, shape=[self._capacity, self._dqn.n])
-                self._returns = self._rewards.copy()
-
             # Add all transitions from the episode to the cache
-            s = slice(N, N + len(episode))
-            self._states[s] = states
-            self._actions[s] = actions
-            self._rewards[s] = rewards
-            self._dones[s] = dones
-            self._mu_epsilons[s] = mu_epsilons
-            N += len(episode)
+            assert self._dones[self._absolute(end)]
+            indices.extend(list(range(start, end + 1)))
+
+        indices = sorted(indices)
+        self._cache_indices = indices = np.array(indices)
+        self._obsolete = 0  # Number of indices that have gone negative, meaning they were deleted
 
         # Shorter names to make the code easier to read below
-        states, actions, rewards, dones, mu_epsilons, q_values, returns = (
-            self._states, self._actions, self._rewards, self._dones,
-            self._mu_epsilons, self._q_values, self._returns)
+        states, actions, rewards, dones, mu_epsilons = (
+            self._states, self._actions, self._rewards, self._dones, self._mu_epsilons)
 
         # Get Q-values from the DQN
-        for i in range(self._capacity // self._block_size):
+        q_values = np.empty_like(rewards, shape=[len(indices), self._dqn.n])
+        for i in range(self._cache_size // self._block_size):
             s = slice(i * self._block_size, (i + 1) * self._block_size)
-            q_values[s] = self._dqn.predict(states[s])
+            x = indices[s]
+            q_values[s] = self._dqn.predict(states[x])
 
         # Compute the multistep returns
-        assert dones[N-1], "trajectory must end at an episode boundary"
-        np.copyto(dst=returns, src=rewards)  # All returns start with the reward
-        for j in range(N):
-            i = (N - 1) - j
-            if dones[i]:
+        returns = rewards[self._absolute(indices)]  # All returns start with the reward
+        assert dones[self._absolute(indices[-1])], "trajectory must end at an episode boundary"
+        for i in reversed(range(len(indices))):
+            x = self._absolute(indices[i])  # Absolute location in replay memory
+
+            if dones[x]:
                 # This is a terminal transition so we're already done
                 continue
 
             # Compute the action probabilities (assuming epsilon-greedy policies)
             pi = epsilon_greedy_probabilities(q_values[i], pi_epsilon)
-            mu = epsilon_greedy_probabilities(q_values[i], mu_epsilons[i])
+            mu = epsilon_greedy_probabilities(q_values[i], mu_epsilons[x])
 
             # Add the discounted expected value of the next state
             returns[i] += self._discount * (pi * q_values[i+1]).sum()
 
             # Recursion: Propagate the discounted future multistep TD error backwards,
             # weighted by the current trace
-            trace = self._compute_trace(actions[i], pi, mu)
-            next_td_error = returns[i+1] - q_values[i+1, actions[i+1]]
+            trace = self._compute_trace(actions[x], pi, mu)
+            next_action = actions[(x + 1) % self._capacity]
+            next_td_error = returns[i+1] - q_values[i+1, next_action]
             returns[i] += self._discount * trace * next_td_error
 
-        # Update the cache size for sampling
-        self._size_now = N
+        # Store returns for minibatch sampling later
+        self._returns = returns
 
-    def sample(self, batch_size):
-        assert self._states is not None, "replay cache must be refreshed before sampling"
-        j = np.random.randint(self._size_now, size=batch_size)
-        return (self._states[j], self._actions[j], self._returns[j])
-
-
-class Episode:
-    def __init__(self):
-        self.states, self.actions, self.rewards, self.dones, self.epsilons = [], [], [], [], []
-        self._already_done = False
-
-    def __len__(self):
-        return len(self.states)
-
-    def append_transition(self, state, action, reward, done, epsilon):
-        assert not self._already_done
-        self._already_done = done or self._already_done
-
-        self.states.append(state)
-        self.actions.append(action)
-        self.rewards.append(reward)
-        self.dones.append(done)
-        self.epsilons.append(epsilon)
+    def _find_episode_boundaries(self):
+        # 0th episode "ends" at -1 (relative), since buffer always begins at an episode start
+        ends = [-1]
+        # Let i be the relative index, and x be the absolute index
+        i = 0
+        # Scan the buffer to obtain the episode ends
+        while True:
+            x = self._absolute(i)
+            if x == self._back:
+                break
+            if self._dones[x]:
+                ends.append(i)
+            i += 1
+        ends = np.array(ends)
+        # Starts are always 1 timestep after an end
+        starts = ends[:-1] + 1
+        # Get rid of the -1 "end"
+        ends = ends[1:]
+        # Compute episode lengths
+        lengths = (ends - starts) + 1
+        assert lengths.sum() == ends[-1] - starts[0] + 1
+        return starts, ends, lengths
