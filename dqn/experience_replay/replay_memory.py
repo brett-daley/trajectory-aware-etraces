@@ -6,7 +6,8 @@ from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_prob
 class ReplayMemory:
     def __init__(self, dqn, capacity, cache_size, block_size, discount, return_estimator):
         assert cache_size <= capacity, "cache size cannot be larger than memory capacity"
-        self._size_now = 0
+        assert block_size <= cache_size, "block size cannot be larger than cache size"
+        assert 0.0 <= discount <= 1.0, "discount must be in the range [0,1]"
         self._capacity = capacity
         self._cache_size = cache_size
         self._block_size = block_size
@@ -28,26 +29,23 @@ class ReplayMemory:
         if self._states is None:
             self._states = np.empty(shape=[self._capacity, *state.shape], dtype=state.dtype)
 
-        if self._size_now >= self._capacity:
-            # Delete the oldest episode
+        self._push((state, action, reward, done, epsilon))
+
+        if self._back == self._front:
+            # The memory is full; delete the oldest episode
             while not self._dones[self._front]:
                 self._pop()
             assert self._dones[self._front]
             self._pop()
             assert not self._dones[self._front]
 
-        self._push((state, action, reward, done, epsilon))
-
     def _push(self, transition):
         b = self._back
         self._states[b], self._actions[b], self._rewards[b], self._dones[b], self._mu_epsilons[b] = transition
         self._back = (self._back + 1) % self._capacity
-        self._size_now += 1
 
     def _pop(self):
         self._front = (self._front + 1) % self._capacity
-        self._size_now -= 1
-
         if hasattr(self, '_cache_indices'):
             self._cache_indices -= 1
             while self._cache_indices[self._obsolete] < 0:
@@ -95,7 +93,7 @@ class ReplayMemory:
         q_values = np.empty_like(rewards, shape=[len(indices), self._dqn.n])
         for i in range(self._cache_size // self._block_size):
             s = slice(i * self._block_size, (i + 1) * self._block_size)
-            x = indices[s]
+            x = self._absolute(indices[s])
             q_values[s] = self._dqn.predict(states[x])
 
         # Compute the multistep returns
