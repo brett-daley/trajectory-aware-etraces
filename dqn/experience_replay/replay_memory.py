@@ -17,19 +17,19 @@ class ReplayMemory:
         self._compute_trace = get_trace_function(return_estimator)
 
         self._states = None
-        self._actions = np.empty(shape=[capacity], dtype=np.int64)
+        self._actions = np.empty(capacity, dtype=np.int64)
         self._rewards = np.empty(capacity, dtype=np.float64)
         self._dones = np.empty(capacity, dtype=np.bool)
-        self._mu_epsilons = np.empty_like(self._rewards)
+        self._mu_policies = np.empty([capacity, self._dqn.n], dtype=np.float64)
 
         self._front = 0  # Points to the oldest experience
         self._back = 0   # Points to the next experience to be overwritten
 
-    def save(self, state, action, reward, done, epsilon):
+    def save(self, state, action, reward, done, mu):
         if self._states is None:
             self._states = np.empty(shape=[self._capacity, *state.shape], dtype=state.dtype)
 
-        self._push((state, action, reward, done, epsilon))
+        self._push((state, action, reward, done, mu))
 
         if self._back == self._front:
             # The memory is full; delete the oldest episode
@@ -41,7 +41,7 @@ class ReplayMemory:
 
     def _push(self, transition):
         b = self._back
-        self._states[b], self._actions[b], self._rewards[b], self._dones[b], self._mu_epsilons[b] = transition
+        self._states[b], self._actions[b], self._rewards[b], self._dones[b], self._mu_policies[b] = transition
         self._back = (self._back + 1) % self._capacity
 
     def _pop(self):
@@ -86,8 +86,8 @@ class ReplayMemory:
         self._obsolete = 0  # Number of indices that have gone negative, meaning they were deleted
 
         # Shorter names to make the code easier to read below
-        states, actions, rewards, dones, mu_epsilons = (
-            self._states, self._actions, self._rewards, self._dones, self._mu_epsilons)
+        states, actions, rewards, dones, mu_policies = (
+            self._states, self._actions, self._rewards, self._dones, self._mu_policies)
 
         # Get Q-values from the DQN
         q_values = np.empty_like(rewards, shape=[len(indices), self._dqn.n])
@@ -106,9 +106,9 @@ class ReplayMemory:
                 # This is a terminal transition so we're already done
                 continue
 
-            # Compute the action probabilities (assuming epsilon-greedy policies)
+            # Compute the target policy probabilities (assuming epsilon-greedy policy)
             pi = epsilon_greedy_probabilities(q_values[i], pi_epsilon)
-            mu = epsilon_greedy_probabilities(q_values[i], mu_epsilons[x])
+            mu = mu_policies[x]
 
             # Add the discounted expected value of the next state
             returns[i] += self._discount * (pi * q_values[i+1]).sum()

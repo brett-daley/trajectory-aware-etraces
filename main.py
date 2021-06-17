@@ -10,6 +10,7 @@ from tensorflow.keras.optimizers import Adam
 from dqn import atari_env
 from dqn.deep_q_network import DeepQNetwork
 from dqn.experience_replay.replay_memory import ReplayMemory
+from dqn.experience_replay.traces import epsilon_greedy_probabilities
 
 os.environ['TF_DETERMINISTIC_OPS'] = '1'
 
@@ -33,21 +34,16 @@ class DQNAgent:
         # Ensure that the cache gets refreshed before training starts
         assert self._prepopulate % self._target_update_freq == 0
 
-        # Parameter for the epsilon-greedy exploration policy
-        # Updated whenever the replay memory cache is refreshed
-        self._epsilon = self._epsilon_schedule(t=1)
-
     def policy(self, t, state):
         assert t > 0, "timestep must start at 1"
-        # With probability epsilon, take a random action
-        if np.random.rand() < self._epsilon:
-            return self._env.action_space.sample()
-        # Else, take the predicted best action (greedy)
-        return self._greedy_action(state)
-
-    def _greedy_action(self, state):
+        epsilon = self._epsilon_schedule(t)
         Q = self._dqn.predict(state[None])[0]
-        return np.argmax(Q)
+        mu = epsilon_greedy_probabilities(Q, epsilon)
+        # With probability epsilon, take a random action
+        if np.random.rand() < epsilon:
+            return self._env.action_space.sample(), mu
+        # Else, take the predicted best action (greedy)
+        return np.argmax(Q), mu
 
     def _epsilon_schedule(self, t):
         if t <= self._prepopulate:
@@ -56,17 +52,17 @@ class DQNAgent:
         epsilon = 1.0 - 0.9 * (t / 1_000_000)
         return max(epsilon, 0.1)
 
-    def update(self, t, state, action, reward, done, next_state):
+    def update(self, t, state, action, reward, done, mu):
         assert t > 0, "timestep must start at 1"
-        self._replay_memory.save(state, action, reward, done, self._epsilon)
+        self._replay_memory.save(state, action, reward, done, mu)
 
         if t <= self._prepopulate:
             # We're still pre-populating the replay memory
             return
 
         if t % self._target_update_freq == 1:
-            self._epsilon = self._epsilon_schedule(t)
-            self._replay_memory.refresh_cache(self._epsilon)
+            epsilon = self._epsilon_schedule(t)
+            self._replay_memory.refresh_cache(epsilon)
 
         if t % self._train_freq == 1:
             minibatch = self._replay_memory.sample(self._batch_size)
@@ -90,9 +86,9 @@ def train(env, agent, timesteps):
             env.close()
             break
 
-        action = agent.policy(t, state)
+        action, mu = agent.policy(t, state)
         next_state, reward, done, _ = env.step(action)
-        agent.update(t, state, action, reward, done, next_state)
+        agent.update(t, state, action, reward, done, mu)
         state = env.reset() if done else next_state
 
 
