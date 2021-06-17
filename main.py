@@ -16,9 +16,10 @@ os.environ['TF_DETERMINISTIC_OPS'] = '1'
 
 
 class DQNAgent:
-    def __init__(self, env, return_estimator='Qlambda-0', **kwargs):
+    def __init__(self, env, return_estimator='Qlambda-0', timesteps=5_000_000, **kwargs):
         assert isinstance(env.action_space, Discrete)
         self._env = env
+        self._timesteps = timesteps
 
         optimizer = Adam(lr=5e-5, epsilon=1e-8)
         self._dqn = DeepQNetwork(env, optimizer)
@@ -39,6 +40,7 @@ class DQNAgent:
         epsilon = self._epsilon_schedule(t)
         Q = self._dqn.predict(state[None])[0]
         mu = epsilon_greedy_probabilities(Q, epsilon)
+
         # With probability epsilon, take a random action
         if np.random.rand() < epsilon:
             return self._env.action_space.sample(), mu
@@ -46,11 +48,19 @@ class DQNAgent:
         return np.argmax(Q), mu
 
     def _epsilon_schedule(self, t):
-        if t <= self._prepopulate:
-            return 1.0
-        t -= self._prepopulate
-        epsilon = 1.0 - 0.9 * (t / 1_000_000)
-        return max(epsilon, 0.1)
+        # Linear interpolation schedule
+        points = [(0, 1.0),
+                  (self._prepopulate, 1.0),
+                  (self._prepopulate + 1_000_000, 0.1),
+                  (self._timesteps, 0.05)]
+        segments = zip(points[:-1], points[1:])
+
+        for (t_start, eps_start), (t_end, eps_end) in reversed(list(segments)):
+            assert t_end > t_start
+            if t >= t_start:
+                frac_elapsed = (t - t_start) / (t_end - t_start)
+                return eps_start + frac_elapsed * (eps_end - eps_start)
+        raise ValueError(f"timestep {t} is not in the schedule")
 
     def update(self, t, state, action, reward, done, mu):
         assert t > 0, "timestep must start at 1"
