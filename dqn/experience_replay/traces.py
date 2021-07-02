@@ -1,19 +1,11 @@
 import numpy as np
 
 
-def get_trace_function(return_estimator):
-    if '-' not in return_estimator:
-        return_estimator += '-'
-    name, lambd = return_estimator.split('-')
-
-    if name == 'IS':
-        assert lambd == '', "IS should not have a lambda value"
-    else:
-        assert lambd != '', "must specify a lambda value for " + name
-        lambd = float(lambd)
+def get_trace_function(return_estimator, lambd):
+    assert 0.0 <= lambd <= 1.0, "lambd must be in the range [0,1]"
 
     def importance_sampling_trace(action, pi, mu):
-        return pi[action] / mu[action]
+        return lambd * pi[action] / mu[action]
 
     def q_lambda_trace(action, pi, mu):
         return lambd
@@ -29,7 +21,7 @@ def get_trace_function(return_estimator):
         'Qlambda': q_lambda_trace,
         'TB': tree_backup_trace,
         'Retrace': retrace_trace,
-    }[name]
+    }[return_estimator]
 
 
 def epsilon_greedy_probabilities(q_values, epsilon):

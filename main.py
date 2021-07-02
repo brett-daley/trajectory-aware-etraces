@@ -16,16 +16,16 @@ os.environ['TF_DETERMINISTIC_OPS'] = '1'
 
 
 class DQNAgent:
-    def __init__(self, env, return_estimator='Qlambda-0', timesteps=5_000_000, **kwargs):
+    def __init__(self, env, **kwargs):
         assert isinstance(env.action_space, Discrete)
         self._env = env
-        self._timesteps = timesteps
+        self._timesteps = kwargs['timesteps']
 
         optimizer = Adam(lr=5e-5, epsilon=1e-8)
         self._dqn = DeepQNetwork(env, optimizer)
-        self._replay_memory = ReplayMemory(self._dqn, capacity=1_000_000,
-                                           cache_size=80_000, block_size=40_000,
-                                           discount=0.99, return_estimator=return_estimator)
+        self._replay_memory = ReplayMemory(
+            self._dqn, capacity=1_000_000, cache_size=80_000, block_size=40_000,
+            discount=0.99, lambd=kwargs['lambd'], return_estimator=kwargs['return_estimator'])
 
         self._prepopulate = 50_000
         self._train_freq = 4
@@ -82,7 +82,8 @@ class DQNAgent:
 def parse_kwargs():
     parser = ArgumentParser()
     parser.add_argument('--game', type=str, default='pong')
-    parser.add_argument('--return-estimator', type=str, default='Qlambda-0')
+    parser.add_argument('--lambd', type=float, default=0.0)
+    parser.add_argument('--return-estimator', type=str, default='Qlambda')
     parser.add_argument('--timesteps', type=int, default=5_000_000)
     parser.add_argument('--seed', type=int, default=0)
     return vars(parser.parse_args())

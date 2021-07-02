@@ -4,7 +4,7 @@ from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_prob
 
 
 class ReplayMemory:
-    def __init__(self, dqn, capacity, cache_size, block_size, discount, return_estimator):
+    def __init__(self, dqn, capacity, cache_size, block_size, discount, lambd, return_estimator):
         assert cache_size <= capacity, "cache size cannot be larger than memory capacity"
         assert block_size <= cache_size, "block size cannot be larger than cache size"
         assert 0.0 <= discount <= 1.0, "discount must be in the range [0,1]"
@@ -14,7 +14,7 @@ class ReplayMemory:
 
         self._dqn = dqn
         self._discount = discount
-        self._compute_trace = get_trace_function(return_estimator)
+        self._compute_trace = get_trace_function(return_estimator, lambd)
 
         self._states = None
         self._actions = np.empty(capacity, dtype=np.int64)
