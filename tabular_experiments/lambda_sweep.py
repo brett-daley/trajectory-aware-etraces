@@ -3,7 +3,6 @@ sys.path.append('..')
 
 import gym
 import gym_classics
-from gym_classics.dynamic_programming import policy_evaluation
 import numpy as np
 
 from dqn.experience_replay.traces import get_trace_function
@@ -50,8 +49,11 @@ def sample_episodes(env_id, behavior_policy, n, seed):
     return env, tuple(transitions)
 
 
-def run_trial(Q, experience, behavior_policy, target_policy, discount, trace_function,
-              learning_rate):
+def train(Q, experience, behavior_policy, target_policy, discount, trace_function,
+          learning_rate):
+    assert 0.0 <= discount <= 1.0
+    assert 0.0 <= learning_rate <= 1.0
+
     eligibility = np.zeros_like(Q)
     for (s, a, reward, ns, done) in experience:
         td_error = reward - Q[s, a]
@@ -70,23 +72,30 @@ def rms(Q1, Q2):
     return np.sqrt(np.mean(np.square(Q1 - Q2)))
 
 
-def main():
-    behavior_policy = np.array([0.25, 0.25, 0.25, 0.25])
+def classic_gridworld_experiment(lambd, return_estimator, learning_rate, seed):
+    behavior_policy = np.array([0.45, 0.45, 0.05, 0.05])
     target_policy = np.array([0.25, 0.25, 0.25, 0.25])
-    env, experience = sample_episodes('ClassicGridworld-v0', behavior_policy, n=1000, seed=0)
+    discount = 0.99
+    trace_function = get_trace_function(return_estimator, lambd)
 
-    discount = 0.9
-    trace_function = get_trace_function('IS', lambd=0.0)
-    learning_rate = 0.1
+    env, experience = sample_episodes('ClassicGridworld-v0', behavior_policy, n=1000, seed=seed)
+    Q = np.zeros([env.observation_space.n, env.action_space.n])
+    train(Q, experience, behavior_policy, target_policy, discount, trace_function, learning_rate)
 
     Q_pi = policy_evaluation(env, discount, target_policy, precision=1e-6)
-    print(np.round(np.mean(Q_pi, axis=1), 2))
-
-    Q = np.zeros([env.observation_space.n, env.action_space.n])
-    run_trial(Q, experience, behavior_policy, target_policy, discount, trace_function, learning_rate)
-    print(np.round(np.mean(Q, axis=1), 2))
-    print(rms(Q, Q_pi))
+    return rms(Q, Q_pi)
 
 
 if __name__ == '__main__':
-    main()
+    return_estimators = ['IS', 'Qlambda', 'TB', 'Retrace']
+    lambda_values = [1.0]
+    learning_rates = np.linspace(0.0, 1.0, 20 + 1)
+
+    for estimator in return_estimators:
+        print(estimator)
+        for lambd in lambda_values:
+            for lr in learning_rates:
+                for seed in range(1):
+                    error = classic_gridworld_experiment(lambd, estimator, learning_rate=lr, seed=seed)
+                    print('{:.2f}'.format(lr), '{:.2f}'.format(lambd), error)
+        print()
