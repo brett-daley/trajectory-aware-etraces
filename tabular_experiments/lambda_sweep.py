@@ -62,6 +62,8 @@ def run_trial(Q, experience, behavior_policy, target_policy, discount, trace_fun
         eligibility *= discount * trace
         eligibility[s, a] += 1.0
         Q += learning_rate * td_error * eligibility
+        if done:
+            eligibility *= 0.0
 
 
 def rms(Q1, Q2):
