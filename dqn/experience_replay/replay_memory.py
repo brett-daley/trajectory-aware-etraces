@@ -1,6 +1,7 @@
 import numpy as np
 
-from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_probabilities
+from dqn import eligibility_traces
+from dqn.experience_replay.traces import epsilon_greedy_probabilities
 
 
 class ReplayMemory:
@@ -14,7 +15,7 @@ class ReplayMemory:
 
         self._dqn = dqn
         self._discount = discount
-        self._compute_trace = get_trace_function(return_estimator, lambd)
+        self._etrace = getattr(eligibility_traces, return_estimator)(discount, lambd, maxlen=cache_size)
 
         self._states = None
         self._actions = np.empty(capacity, dtype=np.int64)
@@ -97,31 +98,26 @@ class ReplayMemory:
             q_values[s] = self._dqn.predict(states[x])
 
         # Compute the multistep returns
-        returns = rewards[self._absolute(indices)]  # All returns start with the reward
         assert dones[self._absolute(indices[-1])], "trajectory must end at an episode boundary"
-        for i in reversed(range(len(indices))):
+        for i in range(len(indices)):
             x = self._absolute(indices[i])  # Absolute location in replay memory
-
-            if dones[x]:
-                # This is a terminal transition so we're already done
-                continue
+            a = actions[x]  # Action taken
 
             # Compute the target policy probabilities (assuming epsilon-greedy policy)
             pi = epsilon_greedy_probabilities(q_values[i], pi_epsilon)
             mu = mu_policies[x]
 
-            # Add the discounted expected value of the next state
-            returns[i] += self._discount * (pi * q_values[i+1]).sum()
-
-            # Recursion: Propagate the discounted future multistep TD error backwards,
-            # weighted by the current trace
-            trace = self._compute_trace(actions[x], pi, mu)
-            next_action = actions[(x + 1) % self._capacity]
-            next_td_error = returns[i+1] - q_values[i+1, next_action]
-            returns[i] += self._discount * trace * next_td_error
+            # Compute the TD error and update the eligibility trace
+            td_error = rewards[x] - q_values[i, a]
+            if not dones[x]:
+                # Add the discounted expected value of the next state
+                td_error += self._discount * (pi * q_values[i+1]).sum()
+            self._etrace.update(td_error, pi[a], mu[a], dones[x])
 
         # Store returns for minibatch sampling later
-        self._returns = returns
+        updates = self._etrace.get_updates_and_reset()
+        taken_q_values = q_values[np.arange(len(indices)), actions[self._absolute(indices)]]
+        self._returns = taken_q_values + updates
 
     def _find_episode_boundaries(self):
         # 0th episode "ends" at -1 (relative), since buffer always begins at an episode start
