@@ -5,10 +5,10 @@ import gym
 import gym_classics
 import numpy as np
 
-from dqn.experience_replay.traces import get_trace_function
+from dqn.eligibility_traces import *
 
 
-def policy_evaluation(env, discount, policy, precision=1e-3):
+def policy_evaluation_Q(env, discount, policy, precision=1e-3):
     assert 0.0 <= discount <= 1.0
     assert precision > 0.0
     Q = np.zeros([env.observation_space.n, env.action_space.n], dtype=np.float64)
@@ -24,6 +24,11 @@ def policy_evaluation(env, discount, policy, precision=1e-3):
             return Q
 
 
+def policy_evaluation_V(env, discount, policy, precision=1e-3):
+    Q = policy_evaluation_Q(env, discount, policy, precision)
+    return policy[None] @ Q.T
+
+
 def backup(env, discount, policy, Q, state, action):
     next_states, rewards, dones, probs = env.model(state, action)
     next_V = (policy[None] @ Q[next_states].T)[0]
@@ -31,71 +36,103 @@ def backup(env, discount, policy, Q, state, action):
     return np.sum(probs * (rewards + discount * next_V))
 
 
-def sample_episodes(env_id, behavior_policy, n, seed):
+def sample_episodes(env_id, behavior_policy, n_episodes, seed):
     env = gym.make(env_id)
     env.seed(seed)
     env.action_space.seed(seed)
     random_state = np.random.RandomState(seed)
 
-    transitions = []
-    for _ in range(n):
+    episodes = []
+    for _ in range(n_episodes):
         state = env.reset()
         done = False
+        transitions = []
         while not done:
             action = random_state.choice(env.action_space.n, p=behavior_policy)
             next_state, reward, done, _ = env.step(action)
             transitions.append( (state, action, reward, next_state, done) )
             state = next_state if not done else env.reset()
-    return env, tuple(transitions)
+        episodes.append(tuple(transitions))
+    return env, tuple(episodes)
 
 
-def train(Q, experience, behavior_policy, target_policy, discount, trace_function,
-          learning_rate):
+def train_V(V, episode, behavior_policy, target_policy, discount, etrace, learning_rate):
     assert 0.0 <= discount <= 1.0
     assert 0.0 <= learning_rate <= 1.0
 
-    eligibility = np.zeros_like(Q)
-    for (s, a, reward, ns, done) in experience:
+    # Accumulate updates using the eligibility trace
+    for (s, a, reward, ns, done) in episode:
+        td_error = reward - V[s]
+        if not done:
+            td_error += discount * V[ns]
+        etrace.update(td_error, target_policy[a], behavior_policy[a], done)
+
+    # Now apply the updates to each visited state-action pair
+    updates = etrace.get_updates_and_reset()
+    for t, (s, _, _, _, _) in enumerate(episode):
+        updates[t] += V[s]
+    for t, (s, _, _, _, _) in enumerate(episode):
+        V[s] += learning_rate * (updates[t] - V[s])
+
+
+def train_Q(Q, episode, behavior_policy, target_policy, discount, etrace, learning_rate):
+    assert 0.0 <= discount <= 1.0
+    assert 0.0 <= learning_rate <= 1.0
+
+    # Accumulate updates using the eligibility trace
+    for (s, a, reward, ns, done) in episode:
         td_error = reward - Q[s, a]
         if not done:
             td_error += discount * (target_policy * Q[ns]).sum()
+        etrace.update(td_error, target_policy[a], behavior_policy[a], done)
 
-        trace = trace_function(a, target_policy, behavior_policy)
-        eligibility *= discount * trace
-        eligibility[s, a] += 1.0
-        Q += learning_rate * td_error * eligibility
-        if done:
-            eligibility *= 0.0
-
-
-def rms(Q1, Q2):
-    return np.sqrt(np.mean(np.square(Q1 - Q2)))
+    # Now apply the updates to each visited state-action pair
+    updates = etrace.get_updates_and_reset()
+    for t, (s, a, _, _, _) in enumerate(episode):
+        updates[t] += Q[s, a]
+    for t, (s, a, _, _, _) in enumerate(episode):
+        Q[s, a] += learning_rate * (updates[t] - Q[s, a])
 
 
-def classic_gridworld_experiment(lambd, return_estimator, learning_rate, seed):
-    behavior_policy = np.array([0.45, 0.45, 0.05, 0.05])
-    target_policy = np.array([0.25, 0.25, 0.25, 0.25])
-    discount = 0.99
-    trace_function = get_trace_function(return_estimator, lambd)
+def rms(x, y):
+    return np.sqrt(np.mean(np.square(x - y)))
 
-    env, experience = sample_episodes('ClassicGridworld-v0', behavior_policy, n=1000, seed=seed)
-    Q = np.zeros([env.observation_space.n, env.action_space.n])
-    train(Q, experience, behavior_policy, target_policy, discount, trace_function, learning_rate)
 
-    Q_pi = policy_evaluation(env, discount, target_policy, precision=1e-6)
-    return rms(Q, Q_pi)
+def random_walk_experiment(lambd, etrace_cls, learning_rate, seed):
+    behavior_policy = np.array([0.5, 0.5])
+    target_policy = np.array([0.5, 0.5])
+    discount = 1.0
+
+    env, episodes = sample_episodes('19Walk-v0', behavior_policy, n_episodes=10, seed=seed)
+
+    etrace = etrace_cls(discount, lambd, maxlen=10_000)
+
+    # TODO: We don't want to recompute this every time
+    V_pi = policy_evaluation_V(env, discount, target_policy, precision=1e-6)
+
+    V = np.zeros(env.observation_space.n)
+    rms_errors = []
+    for e in episodes:
+        train_V(V, e, behavior_policy, target_policy, discount, etrace, learning_rate)
+        rms_errors.append(rms(V, V_pi))
+    return rms_errors
 
 
 if __name__ == '__main__':
-    return_estimators = ['IS', 'Qlambda', 'TB', 'Retrace']
-    lambda_values = [1.0]
-    learning_rates = np.linspace(0.0, 1.0, 20 + 1)
+    return_estimators = [Qlambda]
+    lambda_values = [0.0, 0.4, 0.8, 0.9, 0.95, 0.975, 0.99, 1.0]
+    learning_rates = np.linspace(0.0, 1.0, 10 + 1)
 
     for estimator in return_estimators:
         print(estimator)
         for lambd in lambda_values:
             for lr in learning_rates:
-                for seed in range(1):
-                    error = classic_gridworld_experiment(lambd, estimator, learning_rate=lr, seed=seed)
-                    print('{:.2f}'.format(lr), '{:.2f}'.format(lambd), error)
+                rms_errors = []
+                for seed in range(10):
+                    rms_errors.extend(
+                        random_walk_experiment(lambd, estimator, learning_rate=lr, seed=seed)
+                    )
+                avg_error = np.mean(rms_errors)
+                print('{:.2f}'.format(lr), '{:.2f}'.format(lambd), avg_error)
+            print()
         print()
