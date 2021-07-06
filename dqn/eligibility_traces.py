@@ -16,7 +16,7 @@ class OfflineEligibilityTrace(ABC):
 
     def _reset(self):
         self._trace_products = np.zeros(self._maxlen, dtype=np.float64)
-        self._discounting = np.zeros(self._maxlen, dtype=np.float64)
+        self._eligibility = np.zeros(self._maxlen, dtype=np.float64)
         self._updates = np.zeros(self._maxlen, dtype=np.float64)
 
         self._current_episode_start = 0
@@ -27,17 +27,16 @@ class OfflineEligibilityTrace(ABC):
 
         sl = slice(self._current_episode_start, self._t)
 
-        trace = self._trace_coefficient(target_prob, behavior_prob)
-        self._trace_products[sl] *= trace
-        self._discounting[sl] *= self._discount
+        self._trace_products[sl] *= self._trace_coefficient(target_prob, behavior_prob)
+        self._eligibility[sl] *= self._discount * self._lambd
 
         self._trace_products[self._t] += 1.0
-        self._discounting[self._t] += 1.0
+        self._eligibility[self._t] += 1.0
 
         sl = slice(self._current_episode_start, self._t + 1)
 
-        eligibility = self._discounting[sl] * self._modify_trace_products(self._trace_products[sl])
-        self._updates[sl] += td_error * eligibility
+        self._updates[sl] += td_error * self._eligibility[sl] \
+            * self._modify_trace_products(self._trace_products[sl])
 
         self._t += 1
 
@@ -60,29 +59,25 @@ class OfflineEligibilityTrace(ABC):
 class IS(OfflineEligibilityTrace):
     def _trace_coefficient(self, target_prob, behavior_prob):
         assert behavior_prob > 0.0
-        return self._lambd * (target_prob / behavior_prob)
+        return target_prob / behavior_prob
 
 
 class Qlambda(OfflineEligibilityTrace):
     def _trace_coefficient(self, target_prob, behavior_prob):
-        return self._lambd
+        return 1.0
 
 
 class TB(OfflineEligibilityTrace):
     def _trace_coefficient(self, target_prob, behavior_prob):
-        return self._lambd * target_prob
+        return target_prob
 
 
 class Retrace(OfflineEligibilityTrace):
     def _trace_coefficient(self, target_prob, behavior_prob):
         assert behavior_prob > 0.0
-        return self._lambd * min(1.0, target_prob / behavior_prob)
+        return min(1.0, target_prob / behavior_prob)
 
 
 class Moretrace(IS):
-    def _trace_coefficient(self, target_prob, behavior_prob):
-        assert behavior_prob > 0.0
-        return self._lambd * (target_prob / behavior_prob)
-
     def _modify_trace_products(self, trace_products):
         return np.minimum(1.0, trace_products)
