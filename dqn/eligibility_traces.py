@@ -16,6 +16,7 @@ class OfflineEligibilityTrace(ABC):
 
     def _reset(self):
         self._trace_products = np.zeros(self._maxlen, dtype=np.float64)
+        self._discounting = np.zeros(self._maxlen, dtype=np.float64)
         self._eligibility = np.zeros(self._maxlen, dtype=np.float64)
         self._updates = np.zeros(self._maxlen, dtype=np.float64)
 
@@ -28,15 +29,17 @@ class OfflineEligibilityTrace(ABC):
         sl = slice(self._current_episode_start, self._t)
 
         self._trace_products[sl] *= self._trace_coefficient(target_prob, behavior_prob)
-        self._eligibility[sl] *= self._discount * self._lambd
+        self._discounting[sl] *= self._discount
+        self._eligibility[sl] *= self._lambd
 
         self._trace_products[self._t] += 1.0
+        self._discounting[self._t] += 1.0
         self._eligibility[self._t] += 1.0
 
         sl = slice(self._current_episode_start, self._t + 1)
 
-        self._updates[sl] += td_error * self._eligibility[sl] \
-            * self._modify_trace_products(self._trace_products[sl])
+        self._updates[sl] += td_error * self._discounting[sl] * self._eligibility[sl] \
+            * self._get_trace_products(sl)
 
         self._t += 1
 
@@ -47,8 +50,8 @@ class OfflineEligibilityTrace(ABC):
     def _trace_coefficient(self, target_prob, behavior_prob):
         raise NotImplementedError
 
-    def _modify_trace_products(self, trace_products):
-        return trace_products
+    def _get_trace_products(self, sl):
+        return self._trace_products[sl]
 
     def get_updates_and_reset(self):
         updates = self._updates[:self._t].copy()
@@ -79,5 +82,10 @@ class Retrace(OfflineEligibilityTrace):
 
 
 class Moretrace(IS):
-    def _modify_trace_products(self, trace_products):
-        return np.minimum(1.0, trace_products)
+    def _get_trace_products(self, sl):
+        return np.minimum(1.0, self._trace_products[sl])
+
+
+class Safetrace(IS):
+    def _get_trace_products(self, sl):
+        return np.minimum(self._eligibility[sl], self._trace_products[sl])
