@@ -24,7 +24,7 @@ class DQNAgent:
         optimizer = Adam(lr=5e-5, epsilon=1e-8)
         self._dqn = DeepQNetwork(env, optimizer)
         self._replay_memory = ReplayMemory(
-            self._dqn, capacity=1_000_000, cache_size=80_000, block_size=40_000,
+            self._dqn, capacity=1_000_000, cache_size=80_000,
             discount=0.99, lambd=kwargs['lambd'], return_estimator=kwargs['return_estimator'])
 
         self._prepopulate = 50_000

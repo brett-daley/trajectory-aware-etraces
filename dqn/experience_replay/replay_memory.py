@@ -4,13 +4,14 @@ from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_prob
 
 
 class ReplayMemory:
-    def __init__(self, dqn, capacity, cache_size, block_size, discount, lambd, return_estimator):
+    def __init__(self, dqn, capacity, cache_size, discount, lambd, return_estimator,
+                 refresh_split=2):
         assert cache_size <= capacity, "cache size cannot be larger than memory capacity"
-        assert block_size <= cache_size, "block size cannot be larger than cache size"
         assert 0.0 <= discount <= 1.0, "discount must be in the range [0,1]"
+        assert cache_size % refresh_split == 0, "cache size must be divisible by split"
         self._capacity = capacity
         self._cache_size = cache_size
-        self._block_size = block_size
+        self._block_size = cache_size // refresh_split
 
         self._dqn = dqn
         self._discount = discount
