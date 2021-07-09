@@ -13,8 +13,7 @@ def make(game):
     env = AtariEnv(game, frameskip=4, obs_type='image')
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetWrapper(env)
-    env = NoopResetWrapper(env)
-    # To avoid miscounts, monitor must come after no-ops and before episodic life reset
+    # To avoid miscounts, monitor must come before episodic life reset and reward clipping
     env = AutoMonitor(env)
     env = EpisodicLifeWrapper(env)
     env = ClippedRewardWrapper(env)
@@ -96,22 +95,6 @@ class HistoryWrapper(gym.Wrapper):
     def _clear(self):
         for _ in range(self.history_len):
             self.deque.append(np.zeros(self.shape, dtype=self.dtype))
-
-
-class NoopResetWrapper(gym.Wrapper):
-    """Sample initial states by taking a random number of no-ops on reset.
-    The number is sampled uniformly from [0, `noop_max`]."""
-    def __init__(self, env, noop_max=30):
-        assert env.unwrapped.get_action_meanings()[0] == 'NOOP'
-        super().__init__(env)
-        self.noop_max = noop_max
-
-    def reset(self):
-        observation = self.env.reset()
-        n = np.random.randint(self.noop_max + 1)
-        for _ in range(n):
-            observation, _, _, _ = self.step(0)
-        return observation
 
 
 class PreprocessImageWrapper(gym.ObservationWrapper):

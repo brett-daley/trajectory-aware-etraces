@@ -144,4 +144,7 @@ class ReplayMemory:
         # Compute episode lengths
         lengths = (ends - starts) + 1
         assert lengths.sum() == ends[-1] - starts[0] + 1
+        # Although episode lengths of 1 are possible for MDPs in general, for Atari games
+        # it probably means something went wrong here
+        assert (lengths > 1).all()
         return starts, ends, lengths
