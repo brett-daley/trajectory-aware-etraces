@@ -29,8 +29,20 @@ class OldReplayMemory(ReplayMemory):
         self._population = min(self._population + 1, self._capacity)
 
     def sample(self, batch_size):
-        j = np.random.randint(self._cache_size, size=batch_size)
-        return (self._cached_states[j], self._cached_actions[j], self._cached_returns[j])
+        # j = np.random.randint(self._cache_size, size=batch_size)
+        # return (self._cached_states[j], self._cached_actions[j], self._cached_returns[j])
+        raise NotImplementedError
+
+    def iterate_cache(self, batch_size):
+        # Sample without replacement
+        indices = np.arange(self._cache_size)
+        np.random.shuffle(indices)
+
+        # Yield unique minibatches until the cache is exhausted
+        n_batches = self._cache_size // batch_size
+        for i in range(n_batches):
+            j = indices[i * batch_size : (i + 1) * batch_size]
+            yield (self._cached_states[j], self._cached_actions[j], self._cached_returns[j])
 
     def refresh_cache(self, pi_epsilon):
         # Shorter names to make the code easier to read below
