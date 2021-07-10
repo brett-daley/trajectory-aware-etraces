@@ -16,14 +16,14 @@ os.environ['TF_DETERMINISTIC_OPS'] = '1'
 
 
 class DQNAgent:
-    def __init__(self, env, **kwargs):
+    def __init__(self, env, replay_memory_cls=ReplayMemory, **kwargs):
         assert isinstance(env.action_space, Discrete)
         self._env = env
         self._timesteps = kwargs['timesteps']
 
         optimizer = Adam(lr=5e-5, epsilon=1e-8)
         self._dqn = DeepQNetwork(env, optimizer)
-        self._replay_memory = ReplayMemory(
+        self._replay_memory = replay_memory_cls(
             self._dqn, capacity=1_000_000, cache_size=80_000,
             discount=0.99, lambd=kwargs['lambd'], return_estimator=kwargs['return_estimator'])
 
@@ -89,6 +89,16 @@ def parse_kwargs():
     return vars(parser.parse_args())
 
 
+def setup_env(game, seed):
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+
+    env = atari_env.make(game)
+    env.seed(seed)
+    env.action_space.seed(seed)
+    return env
+
+
 def train(env, agent, timesteps):
     state = env.reset()
 
@@ -108,13 +118,7 @@ def main(kwargs):
     seed = kwargs['seed']
     timesteps = kwargs['timesteps']
 
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-
-    env = atari_env.make(game)
-    env.seed(seed)
-    env.action_space.seed(seed)
-
+    env = setup_env(game, seed)
     agent = DQNAgent(env, **kwargs)
     train(env, agent, timesteps)
 
