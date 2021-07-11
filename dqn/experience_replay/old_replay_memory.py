@@ -7,6 +7,11 @@ from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_prob
 class OldReplayMemory(ReplayMemory):
     def __init__(self, dqn, capacity, cache_size, discount, lambd, return_estimator,
                  block_size=100):
+        if return_estimator == 'Peng':
+            self._compute_returns = self._pengs_q_lambda
+            # Dummy estimator since we won't be using the retrace operator
+            return_estimator = 'Qlambda'
+
         super().__init__(dqn, capacity, cache_size, discount, lambd, return_estimator)
         assert cache_size % block_size == 0, "cache size must be divisible by block size"
         self._block_size = block_size
@@ -45,11 +50,8 @@ class OldReplayMemory(ReplayMemory):
             yield (self._cached_states[j], self._cached_actions[j], self._cached_returns[j])
 
     def refresh_cache(self, pi_epsilon):
-        # Shorter names to make the code easier to read below
-        states, actions, rewards, dones, mu_policies = (
-            self._states, self._actions, self._rewards, self._dones, self._mu_policies)
-
         # Allocate memory for the cached states/actions/returns
+        # TODO: Pre-allocate these for stability
         N = self._cache_size
         self._cached_states = np.empty_like(self._states[:N])
         self._cached_actions = np.empty_like(self._actions[:N])
@@ -63,50 +65,97 @@ class OldReplayMemory(ReplayMemory):
 
             # Add all transitions from the block to the cache
             indices = np.arange(start, end + 1)  # Includes an extra sample for bootstrapping
-            abs_indices = self._absolute(indices)
 
-            # Get Q-values from the DQN
-            q_values = self._dqn.predict(states[abs_indices]).numpy()
-
-            # Compute the multistep returns:
-            # All returns start with the reward
-            returns = self._rewards[abs_indices]
-
-            # Set up the bootstrap for the last state
-            last = abs_indices[-1]
-            if not dones[last]:
-                pi = epsilon_greedy_probabilities(q_values[-1], pi_epsilon)
-                returns[-1] = (pi * q_values[-1]).sum()
-            else:
-                returns[-1] = 0.0
-
-            # For all timesteps except the last, compute the returns
-            for i in reversed(range(len(q_values) - 1)):
-                x = abs_indices[i]  # Absolute location in replay memory
-
-                if dones[x]:
-                    # This is a terminal transition so we're already done
-                    continue
-
-                # Compute the target policy probabilities (assuming epsilon-greedy policy)
-                pi = epsilon_greedy_probabilities(q_values[i], pi_epsilon)
-                mu = mu_policies[x]
-
-                # Recursion: Propagate the discounted future multistep TD error backwards,
-                # weighted by the current trace
-                trace = self._compute_trace(actions[x], pi, mu)
-                next_action = actions[(x + 1) % self._capacity]
-                next_td_error = returns[i+1] - q_values[i+1, next_action]
-                returns[i] += self._discount * trace * next_td_error
-
-                # Add the discounted expected value of the next state
-                returns[i] += self._discount * (pi * q_values[i+1]).sum()
+            # Compute returns (slices off the extra sample automatically)
+            returns = self._compute_returns(indices, pi_epsilon)
+            indices = indices[:-1]
 
             # Store states/actions/returns for minibatch sampling later
             sl = slice(k * self._block_size, (k + 1) * self._block_size)
-            self._cached_states[sl] = states[abs_indices[:-1]]
-            self._cached_actions[sl] = actions[abs_indices[:-1]]
-            self._cached_returns[sl] = returns[:-1]
+            abs_indices = self._absolute(indices)
+            self._cached_states[sl] = self._states[abs_indices]
+            self._cached_actions[sl] = self._actions[abs_indices]
+            self._cached_returns[sl] = returns
 
     def _find_episode_boundaries(self):
         raise NotImplementedError
+
+    def _compute_returns(self, indices, pi_epsilon):
+        abs_indices = self._absolute(indices)
+
+        # Get Q-values from the DQN
+        q_values = self._dqn.predict(self._states[abs_indices]).numpy()
+
+        # Compute the multistep returns:
+        # All returns start with the reward
+        returns = self._rewards[abs_indices]
+
+        # Set up the bootstrap for the last state
+        last = abs_indices[-1]
+        if not self._dones[last]:
+            pi = epsilon_greedy_probabilities(q_values[-1], pi_epsilon)
+            returns[-1] = (pi * q_values[-1]).sum()
+        else:
+            returns[-1] = 0.0
+
+        # For all timesteps except the last, compute the returns
+        for i in reversed(range(len(q_values) - 1)):
+            x = abs_indices[i]  # Absolute location in replay memory
+
+            if self._dones[x]:
+                # This is a terminal transition so we're already done
+                continue
+
+            # Compute the target policy probabilities (assuming epsilon-greedy policy)
+            pi = epsilon_greedy_probabilities(q_values[i], pi_epsilon)
+            mu = self._mu_policies[x]
+
+            # Add the discounted expected value of the next state
+            returns[i] += self._discount * (pi * q_values[i+1]).sum()
+
+            # Recursion: Propagate the discounted future multistep TD error backwards,
+            # weighted by the current trace
+            trace = self._compute_trace(self._actions[x], pi, mu)
+            next_action = self._actions[(x + 1) % self._capacity]
+            next_td_error = returns[i+1] - q_values[i+1, next_action]
+            returns[i] += self._discount * trace * next_td_error
+
+        return returns[:-1]
+
+    def _pengs_q_lambda(self, indices, pi_epsilon):
+        abs_indices = self._absolute(indices)
+
+        # Get Q-values from the DQN
+        q_values = self._dqn.predict(self._states[abs_indices]).numpy()
+
+        # Compute the multistep returns:
+        # All returns start with the reward
+        returns = self._rewards[abs_indices]
+
+        # Set up the bootstrap for the last state
+        last = abs_indices[-1]
+        if not self._dones[last]:
+            returns[-1] = q_values[-1].max()
+        else:
+            returns[-1] = 0.0
+
+        # For all timesteps except the last, compute the returns
+        for i in reversed(range(len(q_values) - 1)):
+            x = abs_indices[i]  # Absolute location in replay memory
+
+            if self._dones[x]:
+                # This is a terminal transition so we're already done
+                continue
+
+            # Compute the target policy probabilities (assuming epsilon-greedy policy)
+            pi = epsilon_greedy_probabilities(q_values[i], pi_epsilon)
+            mu = self._mu_policies[x]
+
+            # Add the discounted expected value of the next state
+            returns[i] += self._discount * q_values[i+1].max()
+
+            # Recursion: Propagate the discounted future multistep TD error backwards
+            next_td_error = returns[i+1] - q_values[i+1].max()
+            returns[i] += self._discount * self._lambd * next_td_error
+
+        return returns[:-1]

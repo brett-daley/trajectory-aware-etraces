@@ -15,6 +15,7 @@ class ReplayMemory:
 
         self._dqn = dqn
         self._discount = discount
+        self._lambd = lambd
         self._compute_trace = get_trace_function(return_estimator, lambd)
 
         self._states = None
