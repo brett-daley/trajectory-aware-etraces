@@ -64,6 +64,9 @@ class ReplayMemory:
     def _absolute(self, i):
         return (self._front + i) % self._capacity
 
+    def _relative(self, i):
+        return (i - self._front) % self._capacity
+
     def refresh_cache(self, pi_epsilon):
         starts, ends, lengths = self._find_episode_boundaries()
 
@@ -83,6 +86,7 @@ class ReplayMemory:
             assert self._dones[self._absolute(end)]
             indices.extend(list(range(start, end + 1)))
 
+        assert len(indices) > 0
         indices = sorted(indices)
         self._cache_indices = indices = np.array(indices)
         self._obsolete = 0  # Number of indices that have gone negative, meaning they were deleted
@@ -126,27 +130,26 @@ class ReplayMemory:
         self._returns = returns
 
     def _find_episode_boundaries(self):
-        # 0th episode "ends" at -1 (relative), since buffer always begins at an episode start
-        ends = [-1]
-        # Let i be the relative index, and x be the absolute index
-        i = 0
-        # Scan the buffer to obtain the episode ends
-        while True:
-            x = self._absolute(i)
-            if x == self._back:
-                break
-            if self._dones[x]:
-                ends.append(i)
-            i += 1
-        ends = np.array(ends)
-        # Starts are always 1 timestep after an end
+        # Start by finding episode ends (note these are *relative* to the front)
+        if self._back >= self._front:
+            dones = self._dones[self._front:self._back]
+        else:
+            # The buffer has wrapped around; we need to re-order the dones
+            dones = np.concatenate([self._dones[self._front:],
+                                    self._dones[:self._back]])
+        ends, = np.where(dones)
+
+        # Episodes always start 1 timestep after an end (except for the last episode)
         starts = ends[:-1] + 1
-        # Get rid of the -1 "end"
-        ends = ends[1:]
+        # Prepend 0 to account for the first episode start
+        starts = np.insert(starts, obj=0, values=0, axis=0)
+
         # Compute episode lengths
         lengths = (ends - starts) + 1
+        # Sanity check: make sure the episode lengths sum up to the correct value
         assert lengths.sum() == ends[-1] - starts[0] + 1
-        # Although episode lengths of 1 are possible for MDPs in general, for Atari games
-        # it probably means something went wrong here
+        # Although episode lengths of 1 are possible for MDPs in general,
+        # for Atari games it probably means something went wrong here
         assert (lengths > 1).all()
+
         return starts, ends, lengths
