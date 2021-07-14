@@ -73,18 +73,26 @@ class ReplayMemory:
         # Sample episodes randomly until we have enough samples for the cache
         # Save the relative indices of each experience for each episode
         indices = []
-        while True:
-            # Sample a random episode (let k be its ID)
-            k = np.random.randint(len(starts))
-            start, end, length = starts[k], ends[k], lengths[k]
+        almost_full = False
+        while not almost_full:
+            # Attempt to sample episodes without replacement, but we will repeat when
+            # the replay memory is smaller than the cache (early in training only)
+            shuffle = np.arange(len(starts))
+            np.random.shuffle(shuffle)
 
-            # If adding this episode will make the cache too large, exit the loop
-            if len(indices) + length > self._cache_size:
-                break
+            for k in shuffle:
+                start, end, length = starts[k], ends[k], lengths[k]
 
-            # Add all transitions from the episode to the cache
-            assert self._dones[self._absolute(end)]
-            indices.extend(list(range(start, end + 1)))
+                if len(indices) + length > self._cache_size:
+                    # Adding this episode will make the cache too large; skip it but
+                    # finish checking the remaining episodes. We won't conduct any more
+                    # sweeps after this one (otherwise we bias for short episodes).
+                    almost_full = True
+                    continue
+
+                # Add all transitions from this episode to the cache
+                assert self._dones[self._absolute(end)]
+                indices.extend(list(range(start, end + 1)))
 
         assert len(indices) > 0
         indices = sorted(indices)
