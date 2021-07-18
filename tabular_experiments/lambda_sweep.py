@@ -3,9 +3,11 @@ sys.path.append('..')
 
 import gym
 import gym_classics
+import matplotlib.pyplot as plt
 import numpy as np
 
 from dqn.eligibility_traces import *
+import walk19_no_op
 
 
 def policy_evaluation_Q(env, discount, policy, precision=1e-3):
@@ -118,21 +120,52 @@ def random_walk_experiment(lambd, etrace_cls, learning_rate, seed):
     return rms_errors
 
 
+def random_walk_no_op_experiment(lambd, etrace_cls, learning_rate, seed):
+    behavior_policy = np.array([1.0, 1.0, 1.0]) / 3.0
+    target_policy = np.array([0.49, 0.49, 0.02])
+    discount = 0.95
+
+    env, episodes = sample_episodes('19WalkNoOp-v0', behavior_policy, n_episodes=10, seed=seed)
+
+    etrace = etrace_cls(discount, lambd, maxlen=10_000)
+
+    # TODO: We don't want to recompute this every time
+    V_pi = policy_evaluation_V(env, discount, target_policy, precision=1e-6)
+
+    # TODO: Test Q not V
+    V = np.zeros(env.observation_space.n)
+    rms_errors = []
+    for e in episodes:
+        train_V(V, e, behavior_policy, target_policy, discount, etrace, learning_rate)
+        rms_errors.append(rms(V, V_pi))
+    return rms_errors
+
+
 if __name__ == '__main__':
     return_estimators = [Qlambda]
     lambda_values = [0.0, 0.4, 0.8, 0.9, 0.95, 0.975, 0.99, 1.0]
     learning_rates = np.linspace(0.0, 1.0, 10 + 1)
 
-    for estimator in return_estimators:
-        print(estimator)
-        for lambd in lambda_values:
+    for lambd in lambda_values:
+        # plt.figure()
+        # plt.ylim([0.1, 0.35])
+        for estimator in return_estimators:
+            print(estimator)
+            # X, Y = [], []
             for lr in learning_rates:
                 rms_errors = []
                 for seed in range(10):
                     rms_errors.extend(
-                        random_walk_experiment(lambd, estimator, learning_rate=lr, seed=seed)
+                        # random_walk_experiment(lambd, estimator, learning_rate=lr, seed=seed)
+                        random_walk_no_op_experiment(lambd, estimator, learning_rate=lr, seed=seed)
                     )
-                avg_error = np.mean(rms_errors)
-                print('{:.2f}'.format(lr), '{:.2f}'.format(lambd), avg_error)
+                mean = np.mean(rms_errors)
+                confidence95 = 1.96 * np.std(rms_errors, ddof=1) / np.sqrt(len(rms_errors))
+                print('{:.2f}'.format(lr), '{:.3f}'.format(lambd), mean, confidence95)
+                # X.append(lr)
+                # Y.append(mean)
             print()
+            # plt.plot(X, Y)
+        # plt.savefig(estimator.__name__ + '.png')
+        # plt.savefig(str(lambd) + '.png')
         print()
