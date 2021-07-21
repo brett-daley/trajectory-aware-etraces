@@ -121,13 +121,13 @@ def random_walk_experiment(lambd, etrace_cls, learning_rate, seed):
 
 
 def random_walk_no_op_experiment(lambd, etrace_cls, learning_rate, seed):
-    behavior_policy = np.array([1.0, 1.0, 1.0]) / 3.0
-    target_policy = np.array([0.49, 0.49, 0.02])
-    discount = 0.95
+    behavior_policy = np.array([1/3, 1/3, 1/3])
+    target_policy = np.array([1/6, 1/6, 2/3])
+    discount = 1.0
 
     env, episodes = sample_episodes('19WalkNoOp-v0', behavior_policy, n_episodes=10, seed=seed)
 
-    etrace = etrace_cls(discount, lambd, maxlen=10_000)
+    etrace = etrace_cls(discount, lambd, maxlen=1_000_000)
 
     # TODO: We don't want to recompute this every time
     V_pi = policy_evaluation_V(env, discount, target_policy, precision=1e-6)
@@ -142,13 +142,13 @@ def random_walk_no_op_experiment(lambd, etrace_cls, learning_rate, seed):
 
 
 if __name__ == '__main__':
-    return_estimators = [Qlambda]
+    return_estimators = [Retrace, Moretrace]
     lambda_values = [0.0, 0.4, 0.8, 0.9, 0.95, 0.975, 0.99, 1.0]
     learning_rates = np.linspace(0.0, 1.0, 10 + 1)
 
     for lambd in lambda_values:
         # plt.figure()
-        # plt.ylim([0.1, 0.35])
+        # plt.ylim([0.25, 0.55])
         for estimator in return_estimators:
             print(estimator)
             # X, Y = [], []
