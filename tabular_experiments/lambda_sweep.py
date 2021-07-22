@@ -1,3 +1,4 @@
+from collections import defaultdict
 import sys
 sys.path.append('..')
 
@@ -6,7 +7,7 @@ import gym_classics
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dqn.eligibility_traces import *
+from dqn import eligibility_traces
 import walk19_no_op
 
 
@@ -28,7 +29,7 @@ def policy_evaluation_Q(env, discount, policy, precision=1e-3):
 
 def policy_evaluation_V(env, discount, policy, precision=1e-3):
     Q = policy_evaluation_Q(env, discount, policy, precision)
-    return policy[None] @ Q.T
+    return (policy[None] @ Q.T)[0]
 
 
 def backup(env, discount, policy, Q, state, action):
@@ -100,72 +101,107 @@ def rms(x, y):
     return np.sqrt(np.mean(np.square(x - y)))
 
 
-def random_walk_experiment(lambd, etrace_cls, learning_rate, seed):
-    behavior_policy = np.array([0.5, 0.5])
-    target_policy = np.array([0.5, 0.5])
-    discount = 1.0
-
-    env, episodes = sample_episodes('19Walk-v0', behavior_policy, n_episodes=10, seed=seed)
-
-    etrace = etrace_cls(discount, lambd, maxlen=10_000)
-
-    # TODO: We don't want to recompute this every time
-    V_pi = policy_evaluation_V(env, discount, target_policy, precision=1e-6)
-
-    V = np.zeros(env.observation_space.n)
-    rms_errors = []
-    for e in episodes:
-        train_V(V, e, behavior_policy, target_policy, discount, etrace, learning_rate)
-        rms_errors.append(rms(V, V_pi))
-    return rms_errors
-
-
-def random_walk_no_op_experiment(lambd, etrace_cls, learning_rate, seed):
-    behavior_policy = np.array([1/3, 1/3, 1/3])
-    target_policy = np.array([1/6, 1/6, 2/3])
-    discount = 1.0
-
-    env, episodes = sample_episodes('19WalkNoOp-v0', behavior_policy, n_episodes=10, seed=seed)
-
+def run_trial_V(V_pi, experience, behavior_policy, target_policy, discount, estimator, lambd, learning_rate):
+    etrace_cls = getattr(eligibility_traces, estimator)
     etrace = etrace_cls(discount, lambd, maxlen=1_000_000)
 
-    # TODO: We don't want to recompute this every time
-    V_pi = policy_evaluation_V(env, discount, target_policy, precision=1e-6)
-
-    # TODO: Test Q not V
-    V = np.zeros(env.observation_space.n)
+    V = np.zeros_like(V_pi)
     rms_errors = []
-    for e in episodes:
-        train_V(V, e, behavior_policy, target_policy, discount, etrace, learning_rate)
+    for episode in experience:
+        train_V(V, episode, behavior_policy, target_policy, discount, etrace, learning_rate)
         rms_errors.append(rms(V, V_pi))
     return rms_errors
+
+
+def run_trial_Q(Q_pi, experience, behavior_policy, target_policy, discount, estimator, lambd, learning_rate):
+    etrace_cls = getattr(eligibility_traces, estimator)
+    etrace = etrace_cls(discount, lambd, maxlen=1_000_000)
+
+    Q = np.zeros_like(Q_pi)
+    rms_errors = []
+    for episode in experience:
+        train_Q(Q, episode, behavior_policy, target_policy, discount, etrace, learning_rate)
+        rms_errors.append(rms(Q, Q_pi))
+    return rms_errors
+
+
+def run_sweep_V(env_id, behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds):
+    assert behavior_policy.sum() == 1.0
+    assert target_policy.sum() == 1.0
+
+    V_pi = None
+    results = defaultdict(list)
+
+    for s in seeds:
+        env, experience = sample_episodes(env_id, behavior_policy, n_episodes=10, seed=s)
+
+        if V_pi is None:
+            V_pi = policy_evaluation_V(env, discount, target_policy, precision=1e-9)
+            V_pi.flags.writeable = False
+
+        for estimator in return_estimators:
+            for lambd in lambda_values:
+                for lr in learning_rates:
+                    key = (estimator, lambd, lr)
+                    results[key].extend(
+                        run_trial_V(V_pi, experience, behavior_policy, target_policy, discount, estimator, lambd, lr)
+                    )
+    return results
+
+
+def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds):
+    assert behavior_policy.sum() == 1.0
+    assert target_policy.sum() == 1.0
+
+    Q_pi = None
+    results = defaultdict(list)
+
+    for s in seeds:
+        env, experience = sample_episodes(env_id, behavior_policy, n_episodes=10, seed=s)
+
+        if Q_pi is None:
+            Q_pi = policy_evaluation_Q(env, discount, target_policy, precision=1e-9)
+            Q_pi.flags.writeable = False
+
+        for estimator in return_estimators:
+            for lambd in lambda_values:
+                for lr in learning_rates:
+                    key = (estimator, lambd, lr)
+                    results[key].extend(
+                        run_trial_Q(Q_pi, experience, behavior_policy, target_policy, discount, estimator, lambd, lr)
+                    )
+    return results
 
 
 if __name__ == '__main__':
-    return_estimators = [Retrace, Moretrace]
+    discount = 1.0
+    return_estimators = ['Retrace', 'Moretrace']
     lambda_values = [0.0, 0.4, 0.8, 0.9, 0.95, 0.975, 0.99, 1.0]
-    learning_rates = np.linspace(0.0, 1.0, 10 + 1)
+    learning_rates = np.round(np.linspace(0.0, 1.0, 10 + 1), 3)
+    seeds = range(10)
+
+    # behavior_policy = np.array([0.5, 0.5])
+    # target_policy = np.array([0.5, 0.5])
+    # results = run_sweep_V('19Walk-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
+
+    behavior_policy = np.array([1/3, 1/3, 1/3])
+    target_policy = np.array([1/6, 1/6, 2/3])
+    results = run_sweep_V('19WalkNoOp-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
 
     for lambd in lambda_values:
-        # plt.figure()
-        # plt.ylim([0.25, 0.55])
+        plt.figure()
+        plt.ylim([0.25, 0.55])
         for estimator in return_estimators:
-            print(estimator)
-            # X, Y = [], []
+            X, Y = [], []
             for lr in learning_rates:
-                rms_errors = []
-                for seed in range(10):
-                    rms_errors.extend(
-                        # random_walk_experiment(lambd, estimator, learning_rate=lr, seed=seed)
-                        random_walk_no_op_experiment(lambd, estimator, learning_rate=lr, seed=seed)
-                    )
+                key = (estimator, lambd, lr)
+                rms_errors = results[key]
+
                 mean = np.mean(rms_errors)
                 confidence95 = 1.96 * np.std(rms_errors, ddof=1) / np.sqrt(len(rms_errors))
                 print('{:.2f}'.format(lr), '{:.3f}'.format(lambd), mean, confidence95)
-                # X.append(lr)
-                # Y.append(mean)
-            print()
-            # plt.plot(X, Y)
-        # plt.savefig(estimator.__name__ + '.png')
-        # plt.savefig(str(lambd) + '.png')
-        print()
+
+                X.append(lr)
+                Y.append(mean)
+            plt.plot(X, Y)
+        plt.savefig(str(lambd) + '.png')
