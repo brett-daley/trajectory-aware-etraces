@@ -21,6 +21,11 @@ class OldReplayMemory(ReplayMemory):
         if self._states is None:
             self._states = np.empty(shape=[self._capacity, *state.shape], dtype=state.dtype)
 
+            # Allocate memory for the cached states/actions/returns
+            self._cached_states = np.empty_like(self._states[:self._cache_size])
+            self._cached_actions = np.empty_like(self._actions[:self._cache_size])
+            self._cached_returns = np.empty_like(self._rewards[:self._cache_size])
+
         self._push((state, action, reward, done, mu))
 
         if self._back == self._front:
@@ -50,13 +55,6 @@ class OldReplayMemory(ReplayMemory):
             yield (self._cached_states[j], self._cached_actions[j], self._cached_returns[j])
 
     def refresh_cache(self, pi_epsilon):
-        # Allocate memory for the cached states/actions/returns
-        # TODO: Pre-allocate these for stability
-        N = self._cache_size
-        self._cached_states = np.empty_like(self._states[:N])
-        self._cached_actions = np.empty_like(self._actions[:N])
-        self._cached_returns = np.empty_like(self._rewards[:N])
-
         # Sample blocks and compute returns until we fill up the cache
         for k in range(self._cache_size // self._block_size):
             # Sample a random block
