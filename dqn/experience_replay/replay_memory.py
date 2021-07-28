@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 
 from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_probabilities
@@ -6,14 +8,14 @@ from dqn.image_stacker import ImageStacker
 
 class ReplayMemory:
     def __init__(self, dqn, capacity, cache_size, discount, lambd, return_estimator,
-                 history_len=4, refresh_split=2):
+                 history_len=4, block_size=16384):
         assert cache_size <= capacity, "cache size cannot be larger than memory capacity"
         assert 0.0 <= discount <= 1.0, "discount must be in the range [0,1]"
-        assert cache_size % refresh_split == 0, "cache size must be divisible by split"
-        assert history_len >= 1, "history length must be positive"
+        assert history_len >= 1, "history length must be a positive integer"
+        assert block_size >= 1, "block size must be a positive integer"
         self._capacity = capacity
         self._cache_size = cache_size
-        self._block_size = cache_size // refresh_split
+        self._block_size = block_size
 
         self._history_len = history_len
         self._image_stacker = ImageStacker(history_len)
@@ -137,7 +139,8 @@ class ReplayMemory:
 
         # Get Q-values from the DQN
         q_values = np.empty_like(rewards, shape=[len(indices), self._dqn.n])
-        for i in range(self._cache_size // self._block_size):
+        n_batches = math.ceil(len(indices) / self._block_size)
+        for i in range(n_batches):
             s = slice(i * self._block_size, (i + 1) * self._block_size)
             states = self._get_states(indices[s])
             q_values[s] = self._dqn.predict(states)

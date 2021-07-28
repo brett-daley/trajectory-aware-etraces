@@ -14,7 +14,6 @@ class OldReplayMemory(ReplayMemory):
 
         super().__init__(dqn, capacity, cache_size, discount, lambd, return_estimator)
         assert cache_size % block_size == 0, "cache size must be divisible by block size"
-        self._block_size = block_size
         self._population = 0
 
     def save(self, observation, action, reward, done, mu):
