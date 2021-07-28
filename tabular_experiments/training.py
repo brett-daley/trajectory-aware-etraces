@@ -1,4 +1,5 @@
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from itertools import product
 import sys
 sys.path.append('..')
@@ -131,18 +132,24 @@ def run_sweep_V(env_id, behavior_policy, target_policy, discount, return_estimat
     V_pi = None
     results = defaultdict(list)
 
-    for s in seeds:
-        env, experience = sample_episodes(env_id, behavior_policy, n_episodes=10, seed=s)
+    key_to_future_dict = {}
+    with ProcessPoolExecutor() as executor:
+        for s in seeds:
+            env, experience = sample_episodes(env_id, behavior_policy, n_episodes=10, seed=s)
 
-        if V_pi is None:
-            V_pi = policy_evaluation_V(env, discount, target_policy, precision=1e-9)
-            V_pi.flags.writeable = False
+            if V_pi is None:
+                V_pi = policy_evaluation_V(env, discount, target_policy, precision=1e-9)
+                V_pi.flags.writeable = False
 
-        for (estimator, lambd, lr) in all_combos:
-            key = (estimator, lambd, lr)
-            results[key].extend(
-                run_trial_V(V_pi, experience, behavior_policy, target_policy, discount, estimator, lambd, lr)
-            )
+            for (estimator, lambd, lr) in all_combos:
+                key = (estimator, lambd, lr)
+                future = executor.submit(run_trial_V, V_pi, experience,
+                    behavior_policy, target_policy, discount, estimator, lambd, lr)
+                key_to_future_dict[key] = future
+
+    for key in key_to_future_dict.keys():
+        rms_errors = key_to_future_dict[key].result()
+        results[key].extend(rms_errors)
 
     for (estimator, lambd, lr) in all_combos:
         key = (estimator, lambd, lr)
@@ -162,18 +169,24 @@ def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimat
     Q_pi = None
     results = defaultdict(list)
 
-    for s in seeds:
-        env, experience = sample_episodes(env_id, behavior_policy, n_episodes=10, seed=s)
+    key_to_future_dict = {}
+    with ProcessPoolExecutor() as executor:
+        for s in seeds:
+            env, experience = sample_episodes(env_id, behavior_policy, n_episodes=10, seed=s)
 
-        if Q_pi is None:
-            Q_pi = policy_evaluation_Q(env, discount, target_policy, precision=1e-9)
-            Q_pi.flags.writeable = False
+            if Q_pi is None:
+                Q_pi = policy_evaluation_Q(env, discount, target_policy, precision=1e-9)
+                Q_pi.flags.writeable = False
 
-        for (estimator, lambd, lr) in all_combos:
-            key = (estimator, lambd, lr)
-            results[key].extend(
-                run_trial_Q(Q_pi, experience, behavior_policy, target_policy, discount, estimator, lambd, lr)
-            )
+            for (estimator, lambd, lr) in all_combos:
+                key = (estimator, lambd, lr)
+                future = executor.submit(run_trial_Q, Q_pi, experience,
+                    behavior_policy, target_policy, discount, estimator, lambd, lr)
+                key_to_future_dict[key] = future
+
+    for key in key_to_future_dict.keys():
+        rms_errors = key_to_future_dict[key].result()
+        results[key].extend(rms_errors)
 
     for (estimator, lambd, lr) in all_combos:
         key = (estimator, lambd, lr)
