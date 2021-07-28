@@ -23,7 +23,7 @@ class DQNAgent:
 
         optimizer = Adam(lr=5e-5, epsilon=1e-8)
         self._dqn = DeepQNetwork(env, optimizer)
-        self._replay_memory = replay_memory_cls(
+        self.replay_memory = replay_memory_cls(
             self._dqn, capacity=1_000_000, cache_size=80_000,
             discount=0.99, lambd=kwargs['lambd'], return_estimator=kwargs['return_estimator'])
 
@@ -64,7 +64,7 @@ class DQNAgent:
 
     def update(self, t, state, action, reward, done, mu):
         assert t > 0, "timestep must start at 1"
-        self._replay_memory.save(state, action, reward, done, mu)
+        self.replay_memory.save(state, action, reward, done, mu)
 
         if t <= self._prepopulate:
             # We're still pre-populating the replay memory
@@ -72,10 +72,10 @@ class DQNAgent:
 
         if t % self._target_update_freq == 1:
             epsilon = self._epsilon_schedule(t)
-            self._replay_memory.refresh_cache(epsilon)
+            self.replay_memory.refresh_cache(epsilon)
 
         if t % self._train_freq == 1:
-            minibatch = self._replay_memory.sample(self._batch_size)
+            minibatch = self.replay_memory.sample(self._batch_size)
             self._dqn.train(*minibatch)
 
 
@@ -100,17 +100,18 @@ def setup_env(game, seed):
 
 
 def train(env, agent, timesteps):
-    state = env.reset()
+    observation = env.reset()
 
     for t in itertools.count(start=1):
         if t >= timesteps and done:
             env.close()
             break
 
+        state = agent.replay_memory.get_state(observation)
         action, mu = agent.policy(t, state)
-        next_state, reward, done, _ = env.step(action)
-        agent.update(t, state, action, reward, done, mu)
-        state = env.reset() if done else next_state
+        next_observation, reward, done, _ = env.step(action)
+        agent.update(t, observation, action, reward, done, mu)
+        observation = env.reset() if done else next_observation
 
 
 def main(kwargs):

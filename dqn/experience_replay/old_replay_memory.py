@@ -17,16 +17,20 @@ class OldReplayMemory(ReplayMemory):
         self._block_size = block_size
         self._population = 0
 
-    def save(self, state, action, reward, done, mu):
-        if self._states is None:
-            self._states = np.empty(shape=[self._capacity, *state.shape], dtype=state.dtype)
+    def save(self, observation, action, reward, done, mu):
+        if self._observations is None:
+            self._observations = np.empty(shape=[self._capacity, *observation.shape], dtype=observation.dtype)
 
             # Allocate memory for the cached states/actions/returns
-            self._cached_states = np.empty_like(self._states[:self._cache_size])
+            self._cached_states = np.empty_like(np.concatenate(
+                self._history_len * [self._observations[:self._cache_size]], axis=-1))
             self._cached_actions = np.empty_like(self._actions[:self._cache_size])
             self._cached_returns = np.empty_like(self._rewards[:self._cache_size])
 
-        self._push((state, action, reward, done, mu))
+        self._push((observation, action, reward, done, mu))
+
+        if done:
+            self._image_stacker.reset()
 
         if self._back == self._front:
             # The memory is full; delete the oldest experience
@@ -34,7 +38,7 @@ class OldReplayMemory(ReplayMemory):
 
     def _push(self, transition):
         b = self._back
-        self._states[b], self._actions[b], self._rewards[b], self._dones[b], self._mu_policies[b] = transition
+        self._observations[b], self._actions[b], self._rewards[b], self._dones[b], self._mu_policies[b] = transition
         self._back = (self._back + 1) % self._capacity
         self._population = min(self._population + 1, self._capacity)
 
@@ -70,22 +74,20 @@ class OldReplayMemory(ReplayMemory):
 
             # Store states/actions/returns for minibatch sampling later
             sl = slice(k * self._block_size, (k + 1) * self._block_size)
-            abs_indices = self._absolute(indices)
-            self._cached_states[sl] = self._states[abs_indices]
-            self._cached_actions[sl] = self._actions[abs_indices]
+            self._cached_states[sl] = self._get_states(indices)
+            self._cached_actions[sl] = self._actions[self._absolute(indices)]
             self._cached_returns[sl] = returns
 
     def _find_episode_boundaries(self):
         raise NotImplementedError
 
     def _compute_returns(self, indices, pi_epsilon):
-        abs_indices = self._absolute(indices)
-
         # Get Q-values from the DQN
-        q_values = self._dqn.predict(self._states[abs_indices]).numpy()
+        q_values = self._dqn.predict(self._get_states(indices)).numpy()
 
         # Compute the multistep returns:
         # All returns start with the reward
+        abs_indices = self._absolute(indices)
         returns = self._rewards[abs_indices]
 
         # Set up the bootstrap for the last state

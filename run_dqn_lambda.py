@@ -9,7 +9,7 @@ class OldDQNAgent(DQNAgent):
 
     def update(self, t, state, action, reward, done, mu):
         assert t > 0, "timestep must start at 1"
-        self._replay_memory.save(state, action, reward, done, mu)
+        self.replay_memory.save(state, action, reward, done, mu)
 
         if t <= self._prepopulate:
             # We're still pre-populating the replay memory
@@ -17,9 +17,9 @@ class OldDQNAgent(DQNAgent):
 
         if t % self._target_update_freq == 1:
             epsilon = self._epsilon_schedule(t)
-            self._replay_memory.refresh_cache(epsilon)
+            self.replay_memory.refresh_cache(epsilon)
 
-            for minibatch in self._replay_memory.iterate_cache(self._batch_size):
+            for minibatch in self.replay_memory.iterate_cache(self._batch_size):
                 self._dqn.train(*minibatch)
 
 

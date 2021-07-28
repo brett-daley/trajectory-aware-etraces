@@ -18,7 +18,10 @@ def make(game):
     env = EpisodicLifeWrapper(env)
     env = ClippedRewardWrapper(env)
     env = PreprocessImageWrapper(env)
-    env = HistoryWrapper(env, history_len=4)
+
+    # Tell the rest of the code that we want to stack 4 observations together to form each "state"
+    shape = (*env._shape[:-1], 4 * env._shape[-1])
+    env.observation_space = Box(low=0, high=255, shape=shape, dtype=env.observation_space.dtype)
     return env
 
 
@@ -63,38 +66,6 @@ class FireResetWrapper(gym.Wrapper):
         self.env.reset()
         observation, _, _, _ = self.step(1)
         return observation
-
-
-class HistoryWrapper(gym.Wrapper):
-    """Stacks the previous `history_len` observations along their last axis.
-    Pads observations with zeros at the beginning of an episode."""
-    def __init__(self, env, history_len=4):
-        assert history_len > 1
-        super().__init__(env)
-        self.history_len = history_len
-        self.deque = deque(maxlen=history_len)
-
-        self.shape = self.observation_space.shape
-        self.dtype = self.observation_space.dtype
-        self.observation_space.shape = (*self.shape[:-1], history_len * self.shape[-1])
-
-    def step(self, action):
-        observation, reward, done, info = self.env.step(action)
-        self.deque.append(observation)
-        return self._history(), reward, done, info
-
-    def reset(self):
-        observation = self.env.reset()
-        self._clear()
-        self.deque.append(observation)
-        return self._history()
-
-    def _history(self):
-        return np.concatenate(list(self.deque), axis=-1)
-
-    def _clear(self):
-        for _ in range(self.history_len):
-            self.deque.append(np.zeros(self.shape, dtype=self.dtype))
 
 
 class PreprocessImageWrapper(gym.ObservationWrapper):

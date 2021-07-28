@@ -1,24 +1,29 @@
 import numpy as np
 
 from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_probabilities
+from dqn.image_stacker import ImageStacker
 
 
 class ReplayMemory:
     def __init__(self, dqn, capacity, cache_size, discount, lambd, return_estimator,
-                 refresh_split=2):
+                 history_len=4, refresh_split=2):
         assert cache_size <= capacity, "cache size cannot be larger than memory capacity"
         assert 0.0 <= discount <= 1.0, "discount must be in the range [0,1]"
         assert cache_size % refresh_split == 0, "cache size must be divisible by split"
+        assert history_len >= 1, "history length must be positive"
         self._capacity = capacity
         self._cache_size = cache_size
         self._block_size = cache_size // refresh_split
+
+        self._history_len = history_len
+        self._image_stacker = ImageStacker(history_len)
 
         self._dqn = dqn
         self._discount = discount
         self._lambd = lambd
         self._compute_trace = get_trace_function(return_estimator, lambd)
 
-        self._states = None
+        self._observations = None
         self._actions = np.empty(capacity, dtype=np.int64)
         self._rewards = np.empty(capacity, dtype=np.float64)
         self._dones = np.empty(capacity, dtype=np.bool)
@@ -27,11 +32,18 @@ class ReplayMemory:
         self._front = 0  # Points to the oldest experience
         self._back = 0   # Points to the next experience to be overwritten
 
-    def save(self, state, action, reward, done, mu):
-        if self._states is None:
-            self._states = np.empty(shape=[self._capacity, *state.shape], dtype=state.dtype)
+    def get_state(self, observation):
+        self._image_stacker.append(observation)
+        return self._image_stacker.get_stack()
 
-        self._push((state, action, reward, done, mu))
+    def save(self, observation, action, reward, done, mu):
+        if self._observations is None:
+            self._observations = np.empty(shape=[self._capacity, *observation.shape], dtype=observation.dtype)
+
+        self._push((observation, action, reward, done, mu))
+
+        if done:
+            self._image_stacker.reset()
 
         if self._back == self._front:
             # The memory is full; delete the oldest episode
@@ -43,7 +55,7 @@ class ReplayMemory:
 
     def _push(self, transition):
         b = self._back
-        self._states[b], self._actions[b], self._rewards[b], self._dones[b], self._mu_policies[b] = transition
+        self._observations[b], self._actions[b], self._rewards[b], self._dones[b], self._mu_policies[b] = transition
         self._back = (self._back + 1) % self._capacity
 
     def _pop(self):
@@ -54,12 +66,32 @@ class ReplayMemory:
                 self._obsolete += 1
 
     def sample(self, batch_size):
-        assert self._states is not None, "replay cache must be refreshed before sampling"
+        assert self._observations is not None, "replay cache must be refreshed before sampling"
         j = np.random.randint(low=self._obsolete,
             high=len(self._cache_indices), size=batch_size)
-        assert (self._cache_indices[j] >= 0).all()
-        x = self._absolute(self._cache_indices[j])
-        return (self._states[x], self._actions[x], self._returns[j])
+        indices = self._cache_indices[j]
+        assert (indices >= 0).all()
+        x = self._absolute(indices)
+        return (self._get_states(indices), self._actions[x], self._returns[j])
+
+    def _get_states(self, indices):
+        states = []
+        for j in reversed(range(self._history_len)):
+            x = self._absolute(indices - j)
+            states.append(self._observations[x])
+
+        mask = np.ones_like(states[0])
+        for j in range(1, self._history_len):
+            i = indices - j
+            x = self._absolute(i)
+            mask[self._dones[x]] = 0.0
+            mask[np.where(i < 0)] = 0.0
+            states[-1 - j] *= mask
+
+        states = np.concatenate(states, axis=-1)
+        assert states.shape[0] == len(indices)
+        assert (states.shape[-1] % self._history_len) == 0
+        return states
 
     def _absolute(self, i):
         return (self._front + i) % self._capacity
@@ -100,15 +132,15 @@ class ReplayMemory:
         self._obsolete = 0  # Number of indices that have gone negative, meaning they were deleted
 
         # Shorter names to make the code easier to read below
-        states, actions, rewards, dones, mu_policies = (
-            self._states, self._actions, self._rewards, self._dones, self._mu_policies)
+        observations, actions, rewards, dones, mu_policies = (
+            self._observations, self._actions, self._rewards, self._dones, self._mu_policies)
 
         # Get Q-values from the DQN
         q_values = np.empty_like(rewards, shape=[len(indices), self._dqn.n])
         for i in range(self._cache_size // self._block_size):
             s = slice(i * self._block_size, (i + 1) * self._block_size)
-            x = self._absolute(indices[s])
-            q_values[s] = self._dqn.predict(states[x])
+            states = self._get_states(indices[s])
+            q_values[s] = self._dqn.predict(states)
 
         # Compute the multistep returns
         returns = rewards[self._absolute(indices)]  # All returns start with the reward
