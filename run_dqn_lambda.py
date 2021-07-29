@@ -5,7 +5,6 @@ from main import DQNAgent, parse_kwargs, setup_env, train
 class OldDQNAgent(DQNAgent):
     def __init__(self, env, **kwargs):
         super().__init__(env, replay_memory_cls=OldReplayMemory, **kwargs)
-        self._train_freq = None
 
     def update(self, t, state, action, reward, done, mu):
         assert t > 0, "timestep must start at 1"
@@ -19,7 +18,9 @@ class OldDQNAgent(DQNAgent):
             epsilon = self._epsilon_schedule(t)
             self.replay_memory.refresh_cache(epsilon)
 
-            for minibatch in self.replay_memory.iterate_cache(self._batch_size):
+            assert self._target_update_freq % self._train_freq == 0
+            n_batches = self._target_update_freq // self._train_freq
+            for minibatch in self.replay_memory.iterate_cache(n_batches, self._batch_size):
                 self._dqn.train(*minibatch)
 
 

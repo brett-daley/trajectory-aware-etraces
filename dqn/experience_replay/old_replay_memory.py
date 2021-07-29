@@ -46,13 +46,14 @@ class OldReplayMemory(ReplayMemory):
         # return (self._cached_states[j], self._cached_actions[j], self._cached_returns[j])
         raise NotImplementedError
 
-    def iterate_cache(self, batch_size):
+    def iterate_cache(self, n_batches, batch_size):
+        assert n_batches * batch_size <= self._cache_size
+
         # Sample without replacement
         indices = np.arange(self._cache_size)
         np.random.shuffle(indices)
 
-        # Yield unique minibatches until the cache is exhausted
-        n_batches = self._cache_size // batch_size
+        # Yield minibatches until we have the requested number
         for i in range(n_batches):
             j = indices[i * batch_size : (i + 1) * batch_size]
             yield (self._cached_states[j], self._cached_actions[j], self._cached_returns[j])
