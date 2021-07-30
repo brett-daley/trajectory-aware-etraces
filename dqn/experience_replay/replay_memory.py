@@ -62,19 +62,36 @@ class ReplayMemory:
 
     def _pop(self):
         self._front = (self._front + 1) % self._capacity
-        if hasattr(self, '_cache_indices'):
-            self._cache_indices -= 1
-            while self._cache_indices[self._obsolete] < 0:
-                self._obsolete += 1
 
-    def sample(self, batch_size):
-        assert self._observations is not None, "replay cache must be refreshed before sampling"
-        j = np.random.randint(low=self._obsolete,
-            high=len(self._cache_indices), size=batch_size)
-        indices = self._cache_indices[j]
-        assert (indices >= 0).all()
-        x = self._absolute(indices)
-        return (self._get_states(indices), self._actions[x], self._returns[j])
+    def iterate_cache(self, n_batches, batch_size):
+        for j in self._iterate_cache(n_batches, batch_size, actual_cache_size=len(self._cache_indices)):
+            i = self._cache_indices[j]
+            x = self._absolute(i)
+            yield (self._get_states(i), self._actions[x], self._returns[j])
+
+    def _iterate_cache(self, n_batches, batch_size, actual_cache_size):
+        # Actual cache size cannot be larger than the nominal size
+        assert actual_cache_size <= self._cache_size
+
+        # We must be able to sample at least one minibatch
+        assert batch_size <= actual_cache_size
+
+        # Yield minibatches of indices without replacement
+        indices = np.arange(actual_cache_size)
+        np.random.shuffle(indices)
+        start = 0
+        for _ in range(n_batches):
+            end = start + batch_size
+
+            if end > actual_cache_size:
+                # There aren't enough samples for the requested number of minibatches;
+                # re-shuffle and start another pass
+                np.random.shuffle(indices)
+                start, end = 0, batch_size
+
+            assert len(indices[start:end]) == batch_size
+            yield indices[start:end]
+            start += batch_size
 
     def _get_states(self, indices):
         states = []
@@ -131,7 +148,6 @@ class ReplayMemory:
         assert len(indices) > 0
         indices = sorted(indices)
         self._cache_indices = indices = np.array(indices)
-        self._obsolete = 0  # Number of indices that have gone negative, meaning they were deleted
 
         # Shorter names to make the code easier to read below
         observations, actions, rewards, dones, mu_policies = (

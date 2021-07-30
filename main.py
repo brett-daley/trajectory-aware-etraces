@@ -35,6 +35,10 @@ class DQNAgent:
         # Ensure that the cache gets refreshed before training starts
         assert self._prepopulate % self._target_update_freq == 0
 
+        # Compute number of minibatches to conduct per "epoch" (i.e. target net update)
+        assert self._target_update_freq % self._train_freq == 0
+        self._batches_per_epoch = self._target_update_freq // self._train_freq
+
     def policy(self, t, state):
         assert t > 0, "timestep must start at 1"
         epsilon = self._epsilon_schedule(t)
@@ -74,9 +78,8 @@ class DQNAgent:
             epsilon = self._epsilon_schedule(t)
             self.replay_memory.refresh_cache(epsilon)
 
-        if t % self._train_freq == 1:
-            minibatch = self.replay_memory.sample(self._batch_size)
-            self._dqn.train(*minibatch)
+            for minibatch in self.replay_memory.iterate_cache(self._batches_per_epoch, self._batch_size):
+                self._dqn.train(*minibatch)
 
 
 def parse_kwargs():
