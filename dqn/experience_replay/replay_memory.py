@@ -185,6 +185,9 @@ class ReplayMemory:
             next_td_error = returns[i+1] - q_values[i+1, next_action]
             returns[i] += self._discount * trace * next_td_error
 
+        # Check for abnormally large returns
+        assert (np.abs(returns) < 1e6).all()
+
         # Store returns for minibatch sampling later
         self._returns = returns
 

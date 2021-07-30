@@ -6,14 +6,14 @@ from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_prob
 
 class OldReplayMemory(ReplayMemory):
     def __init__(self, dqn, capacity, cache_size, discount, lambd, return_estimator,
-                 block_size=100):
+                 history_len=4, block_size=100):
         if return_estimator == 'Peng':
             self._compute_returns = self._pengs_q_lambda
             # Dummy estimator since we won't be using the retrace operator
             return_estimator = 'Qlambda'
 
-        super().__init__(dqn, capacity, cache_size, discount, lambd, return_estimator)
-        assert cache_size % block_size == 0, "cache size must be divisible by block size"
+        super().__init__(dqn, capacity, cache_size, discount, lambd, return_estimator, history_len, block_size)
+        assert self._cache_size % self._block_size == 0, "cache size must be divisible by block size"
         self._population = 0
 
     def save(self, observation, action, reward, done, mu):
@@ -107,6 +107,8 @@ class OldReplayMemory(ReplayMemory):
             next_td_error = returns[i+1] - q_values[i+1, next_action]
             returns[i] += self._discount * trace * next_td_error
 
+        # Check for abnormally large returns
+        assert (np.abs(returns) < 1e6).all()
         return returns[:-1]
 
     def _pengs_q_lambda(self, indices, pi_epsilon):
@@ -145,4 +147,6 @@ class OldReplayMemory(ReplayMemory):
             next_td_error = returns[i+1] - q_values[i+1].max()
             returns[i] += self._discount * self._lambd * next_td_error
 
+        # Check for abnormally large returns
+        assert (np.abs(returns) < 1e6).all()
         return returns[:-1]
