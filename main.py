@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 import itertools
 import os
 
+from gym import Wrapper
 from gym.spaces import Discrete
 import numpy as np
 import tensorflow as tf
@@ -106,7 +107,7 @@ def train(env, agent, timesteps):
     observation = env.reset()
 
     for t in itertools.count(start=1):
-        if t >= timesteps and done:
+        if t >= timesteps and real_done:
             env.close()
             break
 
@@ -114,7 +115,17 @@ def train(env, agent, timesteps):
         action, mu = agent.policy(t, state)
         next_observation, reward, done, _ = env.step(action)
         agent.update(t, observation, action, reward, done, mu)
-        observation = env.reset() if done else next_observation
+
+        real_done = was_real_done(env, done)
+        observation = env.reset() if real_done else next_observation
+
+
+def was_real_done(env, done):
+    if isinstance(env, atari_env.EpisodicLifeWrapper):
+        return env.was_real_done
+    elif isinstance(env, Wrapper):
+        return was_real_done(env.env, done)
+    return done
 
 
 def main(kwargs):
