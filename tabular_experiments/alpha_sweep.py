@@ -12,7 +12,7 @@ if __name__ == '__main__':
     discount = 1.0
     return_estimators = ['Retrace', 'Moretrace']
     lambda_values = [0.0, 0.4, 0.8, 0.9, 0.95, 0.975, 0.99, 1.0]
-    learning_rates = np.exp(np.linspace(-5, 0, 51))
+    learning_rates = np.linspace(0, 1, 51)
     seeds = range(10)
 
     # behavior_policy = np.array([0.5, 0.5])
@@ -21,23 +21,23 @@ if __name__ == '__main__':
 
     behavior_policy = np.array([1/3, 1/3, 1/3])
     target_policy = np.array([1/6, 1/6, 2/3])
-    results = run_sweep_V('19WalkNoOp-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
+    results = run_sweep_Q('19WalkNoOp-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
 
     # Plot RMS vs Learning Rate
     for lambd in lambda_values:
         plt.figure()
         plt.xlim([0, 1])
         plt.xticks(np.linspace(0, 1, 10 + 1))
-        plt.ylim([0.25, 0.55])
+        plt.ylim([0.0, 0.55])
 
         for estimator in return_estimators:
             X, Y, ERROR = [], [], []
             for lr in learning_rates:
                 key = (estimator, lambd, lr)
-                mean, std = results[key]
+                mean, error = results[key]
                 X.append(lr)
                 Y.append(mean)
-                ERROR.append(std)
+                ERROR.append(error)
 
             X, Y, ERROR = map(np.array, [X, Y, ERROR])
             plt.plot(X, Y, label=estimator)
@@ -48,4 +48,5 @@ if __name__ == '__main__':
         plt.xlabel(r"$\alpha$")
         plt.ylabel("RMS Error")
         plot_path = os.path.join('plots', 'lambda-' + str(lambd) + '.png')
+        plt.legend(loc='lower left')
         plt.savefig(plot_path)

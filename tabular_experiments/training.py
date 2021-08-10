@@ -128,6 +128,9 @@ def run_sweep_V(env_id, behavior_policy, target_policy, discount, return_estimat
     assert behavior_policy.sum() == 1.0
     assert target_policy.sum() == 1.0
 
+    n_episodes = 100
+    n_seeds = len(list(seeds))
+
     all_combos = tuple(product(return_estimators, lambda_values, learning_rates))
     V_pi = None
     results = defaultdict(list)
@@ -135,35 +138,42 @@ def run_sweep_V(env_id, behavior_policy, target_policy, discount, return_estimat
     key_to_future_dict = {}
     with ProcessPoolExecutor() as executor:
         for s in seeds:
-            env, experience = sample_episodes(env_id, behavior_policy, n_episodes=10, seed=s)
+            env, experience = sample_episodes(env_id, behavior_policy, n_episodes, seed=s)
 
             if V_pi is None:
                 V_pi = policy_evaluation_V(env, discount, target_policy, precision=1e-9)
                 V_pi.flags.writeable = False
 
             for (estimator, lambd, lr) in all_combos:
-                key = (estimator, lambd, lr)
+                key = (estimator, lambd, lr, s)
                 future = executor.submit(run_trial_V, V_pi, experience,
                     behavior_policy, target_policy, discount, estimator, lambd, lr)
                 key_to_future_dict[key] = future
 
     for key in key_to_future_dict.keys():
         rms_errors = key_to_future_dict[key].result()
-        results[key].extend(rms_errors)
+        (estimator, lambd, lr, _) = key
+        results[(estimator, lambd, lr)].append(rms_errors)
 
     for (estimator, lambd, lr) in all_combos:
         key = (estimator, lambd, lr)
-        rms_errors = results[key]
+        rms_errors = np.array(results[key])
+        assert rms_errors.shape == (n_seeds, n_episodes)
+
         mean = np.mean(rms_errors)
-        std = np.std(rms_errors, ddof=1)
-        results[key] = (mean, std)
-        print('{:.3f}'.format(lr), '{:.3f}'.format(lambd), mean, std)
+        error = np.std(rms_errors.mean(axis=1), ddof=1)
+        results[key] = (mean, error)
+        print('{:.3f}'.format(lr), '{:.3f}'.format(lambd), mean, error)
+
     return results
 
 
 def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds):
     assert behavior_policy.sum() == 1.0
     assert target_policy.sum() == 1.0
+
+    n_episodes = 100
+    n_seeds = len(list(seeds))
 
     all_combos = tuple(product(return_estimators, lambda_values, learning_rates))
     Q_pi = None
@@ -172,27 +182,31 @@ def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimat
     key_to_future_dict = {}
     with ProcessPoolExecutor() as executor:
         for s in seeds:
-            env, experience = sample_episodes(env_id, behavior_policy, n_episodes=10, seed=s)
+            env, experience = sample_episodes(env_id, behavior_policy, n_episodes, seed=s)
 
             if Q_pi is None:
                 Q_pi = policy_evaluation_Q(env, discount, target_policy, precision=1e-9)
                 Q_pi.flags.writeable = False
 
             for (estimator, lambd, lr) in all_combos:
-                key = (estimator, lambd, lr)
+                key = (estimator, lambd, lr, s)
                 future = executor.submit(run_trial_Q, Q_pi, experience,
                     behavior_policy, target_policy, discount, estimator, lambd, lr)
                 key_to_future_dict[key] = future
 
     for key in key_to_future_dict.keys():
         rms_errors = key_to_future_dict[key].result()
-        results[key].extend(rms_errors)
+        (estimator, lambd, lr, _) = key
+        results[(estimator, lambd, lr)].append(rms_errors)
 
     for (estimator, lambd, lr) in all_combos:
         key = (estimator, lambd, lr)
-        rms_errors = results[key]
+        rms_errors = np.array(results[key])
+        assert rms_errors.shape == (n_seeds, n_episodes)
+
         mean = np.mean(rms_errors)
-        std = np.std(rms_errors, ddof=1)
-        results[key] = (mean, std)
-        print('{:.3f}'.format(lr), '{:.3f}'.format(lambd), mean, std)
+        error = np.std(rms_errors.mean(axis=1), ddof=1)
+        results[key] = (mean, error)
+        print('{:.3f}'.format(lr), '{:.3f}'.format(lambd), mean, error)
+
     return results
