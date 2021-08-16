@@ -26,7 +26,7 @@ class ReplayMemory:
         self._compute_trace = get_trace_function(return_estimator, lambd)
 
         self._observations = None
-        self._actions = np.empty(capacity, dtype=np.int64)
+        self._actions = np.empty(capacity, dtype=np.uint8)
         self._rewards = np.empty(capacity, dtype=np.float64)
         self._dones = np.empty(capacity, dtype=np.bool)
         self._mu_policies = np.empty([capacity, self._dqn.n], dtype=np.float64)
@@ -191,7 +191,7 @@ class ReplayMemory:
                 indices.extend(list(range(start, end + 1)))
 
         assert len(indices) > 0
-        return np.array(sorted(indices))
+        return np.array(sorted(indices), dtype=np.int32)
 
     def _find_episode_boundaries(self):
         # Start by finding episode ends (note these are *relative* to the front)
