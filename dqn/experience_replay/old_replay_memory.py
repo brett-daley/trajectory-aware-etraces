@@ -115,7 +115,7 @@ class OldReplayMemory(ReplayMemory):
         abs_indices = self._absolute(indices)
 
         # Get Q-values from the DQN
-        q_values = self._dqn.predict(self._states[abs_indices]).numpy()
+        q_values = self._dqn.predict(self._get_states(indices)).numpy()
 
         # Compute the multistep returns:
         # All returns start with the reward
