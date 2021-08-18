@@ -150,7 +150,7 @@ class ReplayMemory:
                 # If adding this episode will make the cache too large, exit the loop
                 if len(indices) + length > self._cache_size:
                     assert 0 < len(indices) <= self._cache_size
-                    return np.array(sorted(indices), dtype=np.int32)
+                    return np.array(indices, dtype=np.int32)
 
                 # Add all transitions from this episode to the cache
                 assert self._dones[self._absolute(end)]
