@@ -138,8 +138,7 @@ class ReplayMemory:
         # Sample episodes randomly until we have enough samples for the cache
         # Save the relative indices of each experience for each episode
         indices = []
-        almost_full = False
-        while not almost_full:
+        while True:
             # Attempt to sample episodes without replacement, but we will repeat when
             # the replay memory is smaller than the cache (early in training only)
             shuffle = np.arange(len(starts))
@@ -148,19 +147,14 @@ class ReplayMemory:
             for k in shuffle:
                 start, end, length = starts[k], ends[k], lengths[k]
 
+                # If adding this episode will make the cache too large, exit the loop
                 if len(indices) + length > self._cache_size:
-                    # Adding this episode will make the cache too large; skip it but
-                    # finish checking the remaining episodes. We won't conduct any more
-                    # sweeps after this one (otherwise we bias for short episodes).
-                    almost_full = True
-                    continue
+                    assert 0 < len(indices) <= self._cache_size
+                    return np.array(sorted(indices), dtype=np.int32)
 
                 # Add all transitions from this episode to the cache
                 assert self._dones[self._absolute(end)]
                 indices.extend(list(range(start, end + 1)))
-
-        assert len(indices) > 0
-        return np.array(sorted(indices), dtype=np.int32)
 
     def _find_episode_boundaries(self):
         # Start by finding episode ends (note these are *relative* to the front)
