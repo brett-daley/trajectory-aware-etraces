@@ -124,25 +124,16 @@ def train(env, agent, timesteps):
     observation = env.reset()
 
     for t in itertools.count(start=1):
-        if t >= timesteps and real_done:
+        if t >= timesteps and info['real_done']:
             env.close()
             break
 
         state = agent.replay_memory.get_state(observation)
         action, mu = agent.policy(t, state)
-        next_observation, reward, done, _ = env.step(action)
+        next_observation, reward, done, info = env.step(action)
         agent.update(t, observation, action, reward, done, mu)
 
-        real_done = was_real_done(env, done)
-        observation = env.reset() if real_done else next_observation
-
-
-def was_real_done(env, done):
-    if isinstance(env, atari_env.EpisodicLifeWrapper):
-        return env.was_real_done
-    elif isinstance(env, Wrapper):
-        return was_real_done(env.env, done)
-    return done
+        observation = env.reset() if info['real_done'] else next_observation
 
 
 def main(kwargs):

@@ -1,5 +1,3 @@
-from collections import deque
-
 import cv2
 import gym
 from gym.envs.atari.atari_env import AtariEnv
@@ -13,6 +11,10 @@ def make(game):
     env = AtariEnv(game, frameskip=4, obs_type='image')
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetWrapper(env)
+
+    # 27k timesteps * 4 frames/timestep = 108k frames = 30 minutes of gameplay
+    env = TimeLimitWrapper(env, max_timesteps=27_000)
+
     # To avoid miscounts, monitor must come before episodic life reset and reward clipping
     env = AutoMonitor(env)
     env = EpisodicLifeWrapper(env)
@@ -41,12 +43,21 @@ class EpisodicLifeWrapper(gym.Wrapper):
     def step(self, action):
         self.observation, reward, done, info = self.env.step(action)
         self.was_real_done = done
+
         lives = self.env.unwrapped.ale.lives()
-        if 0 < lives < self.lives:
+        if lives < self.lives:
             # We lost a life, but force a reset only if it's not game over.
             # Otherwise, the environment just handles it automatically.
-            done = True
+            if lives > 0:
+                done = True
+            # HACK: Force a reset when it's game over too. Temporary workaround to
+            # address a bug in the ALE where some games may not terminate correctly.
+            # https://github.com/mgbellemare/Arcade-Learning-Environment/issues/434
+            if lives == 0:
+                self.was_real_done = done = True
         self.lives = lives
+
+        info.update({'real_done': self.was_real_done})
         return self.observation, reward, done, info
 
     def reset(self):
@@ -81,3 +92,21 @@ class PreprocessImageWrapper(gym.ObservationWrapper):
 
     def _resize(self, observation):
         return cv2.resize(observation, self._shape[:2][::-1], interpolation=self._interpolation)
+
+
+class TimeLimitWrapper(gym.Wrapper):
+    def __init__(self, env, max_timesteps):
+        super().__init__(env)
+        assert max_timesteps > 0
+        self._max_timesteps = max_timesteps
+        self._episode_steps = 0
+
+    def step(self, action):
+        self._episode_steps += 1
+        observation, reward, done, info = self.env.step(action)
+        done = done or (self._episode_steps >= self._max_timesteps)
+        return observation, reward, done, info
+
+    def reset(self):
+        self._episode_steps = 0
+        return self.env.reset()
