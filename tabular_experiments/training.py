@@ -7,7 +7,7 @@ sys.path.append('..')
 import gym
 import numpy as np
 
-from dqn import eligibility_traces
+from dqn.experience_replay import eligibility_traces
 
 
 def policy_evaluation_Q(env, discount, policy, precision=1e-3):
@@ -63,14 +63,13 @@ def train_V(V, episode, behavior_policy, target_policy, discount, etrace, learni
     assert 0.0 <= learning_rate <= 1.0
 
     # Accumulate updates using the eligibility trace
-    for (s, a, reward, ns, done) in episode:
-        td_error = reward - V[s]
-        if not done:
-            td_error += discount * V[ns]
-        etrace.update(td_error, target_policy[a], behavior_policy[a], done)
+    states, actions, rewards, next_states, dones = map(np.array, zip(*episode))
+    dones = dones.astype(np.float32)
+    td_errors = rewards - V[states]
+    td_errors += discount * (1.0 - dones) * V[next_states]
+    updates = etrace(td_errors, target_policy[actions], behavior_policy[actions], dones)
 
     # Now apply the updates to each visited state-action pair
-    updates = etrace.get_updates_and_reset()
     for t, (s, _, _, _, _) in enumerate(episode):
         updates[t] += V[s]
     for t, (s, _, _, _, _) in enumerate(episode):
@@ -82,14 +81,13 @@ def train_Q(Q, episode, behavior_policy, target_policy, discount, etrace, learni
     assert 0.0 <= learning_rate <= 1.0
 
     # Accumulate updates using the eligibility trace
-    for (s, a, reward, ns, done) in episode:
-        td_error = reward - Q[s, a]
-        if not done:
-            td_error += discount * (target_policy * Q[ns]).sum()
-        etrace.update(td_error, target_policy[a], behavior_policy[a], done)
+    states, actions, rewards, next_states, dones = map(np.array, zip(*episode))
+    dones = dones.astype(np.float32)
+    td_errors = rewards - Q[states, actions]
+    td_errors += discount * (1.0 - dones) * (target_policy * Q[next_states]).sum()
+    updates = etrace(td_errors, target_policy[actions], behavior_policy[actions], dones)
 
     # Now apply the updates to each visited state-action pair
-    updates = etrace.get_updates_and_reset()
     for t, (s, a, _, _, _) in enumerate(episode):
         updates[t] += Q[s, a]
     for t, (s, a, _, _, _) in enumerate(episode):

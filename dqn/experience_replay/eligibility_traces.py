@@ -12,41 +12,35 @@ class OfflineEligibilityTrace(ABC):
 
         assert maxlen > 0
         self._maxlen = maxlen
-        self._reset()
 
-    def _reset(self):
-        self._eligibility = np.zeros(self._maxlen, dtype=np.float64)
-        self._updates = np.zeros(self._maxlen, dtype=np.float64)
+    def __call__(self, td_errors, target_probs, behavior_probs, dones):
+        assert len(td_errors) == len(target_probs) == len(behavior_probs) == len(dones)
 
-        self._current_episode_start = 0
-        self._t = 0
+        eligibility = np.zeros(self._maxlen, dtype=np.float64)
+        updates = np.zeros(self._maxlen, dtype=np.float64)
 
-    def update(self, td_error, target_prob, behavior_prob, done):
-        assert self._t < self._maxlen
+        current_episode_start = 0
+        for t in range(len(td_errors)):
+            assert t < self._maxlen
 
-        sl = slice(self._current_episode_start, self._t)
+            sl = slice(current_episode_start, t)
 
-        trace = self._trace_coefficient(target_prob, behavior_prob)
-        self._eligibility[sl] *= self._discount * trace
-        self._eligibility[self._t] += 1.0
+            trace = self._trace_coefficient(target_probs[t], behavior_probs[t])
+            eligibility[sl] *= self._discount * trace
+            eligibility[t] += 1.0
 
-        sl = slice(self._current_episode_start, self._t + 1)
+            sl = slice(current_episode_start, t + 1)
 
-        self._updates[sl] += td_error * self._eligibility[sl]
+            updates[sl] += td_errors[t] * eligibility[sl]
 
-        self._t += 1
+            if dones[t]:
+                current_episode_start = t
 
-        if done:
-            self._current_episode_start = self._t
+        return updates
 
     @abstractmethod
     def _trace_coefficient(self, target_prob, behavior_prob):
         raise NotImplementedError
-
-    def get_updates_and_reset(self):
-        updates = self._updates[:self._t].copy()
-        self._reset()
-        return updates
 
 
 class IS(OfflineEligibilityTrace):
@@ -105,3 +99,11 @@ class Moretrace(OfflineEligibilityTrace):
     def _trace_coefficient(self, target_prob, behavior_prob):
         assert behavior_prob > 0.0
         return target_prob / behavior_prob
+
+
+def epsilon_greedy_probabilities(q_values, epsilon):
+    assert q_values.ndim in {1, 2}, "Q-values must be a 1- or 2-dimensional vector"
+    n = q_values.shape[-1]
+    probabilities = (epsilon / n) * np.ones_like(q_values)
+    probabilities[..., np.argmax(q_values)] += (1.0 - epsilon)
+    return probabilities
