@@ -3,22 +3,17 @@ import math
 import numpy as np
 
 from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_probabilities
-from dqn.image_stacker import ImageStacker
 
 
 class ReplayMemory:
     def __init__(self, dqn, capacity, cache_size, discount, lambd, return_estimator,
-                 history_len=4, block_size=16384):
+                 block_size=16384):
         assert cache_size <= capacity, "cache size cannot be larger than memory capacity"
         assert 0.0 <= discount <= 1.0, "discount must be in the range [0,1]"
-        assert history_len >= 1, "history length must be a positive integer"
         assert block_size >= 1, "block size must be a positive integer"
         self._capacity = capacity
         self._cache_size = cache_size
         self._block_size = block_size
-
-        self._history_len = history_len
-        self._image_stacker = ImageStacker(history_len)
 
         self._dqn = dqn
         self._discount = discount
@@ -34,18 +29,14 @@ class ReplayMemory:
         self._front = 0  # Points to the oldest experience
         self._back = 0   # Points to the next experience to be overwritten
 
-    def get_state(self, observation):
-        self._image_stacker.append(observation)
-        return self._image_stacker.get_stack()
+    def save(self, state, action, reward, done, mu):
+        observation = state[..., -1, None]
 
-    def save(self, observation, action, reward, done, mu):
         if self._observations is None:
+            self._history_len = state.shape[-1]
             self._observations = np.empty(shape=[self._capacity, *observation.shape], dtype=observation.dtype)
 
         self._push((observation, action, reward, done, mu))
-
-        if done:
-            self._image_stacker.reset()
 
         if self._back == self._front:
             # The memory is full; delete the oldest episode

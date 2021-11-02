@@ -6,25 +6,24 @@ from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_prob
 
 class OldReplayMemory(ReplayMemory):
     def __init__(self, dqn, capacity, cache_size, discount, lambd, return_estimator,
-                 history_len=4, block_size=100):
-        super().__init__(dqn, capacity, cache_size, discount, lambd, return_estimator, history_len, block_size)
+                 block_size=100):
+        super().__init__(dqn, capacity, cache_size, discount, lambd, return_estimator, block_size)
         assert self._cache_size % self._block_size == 0, "cache size must be divisible by block size"
         self._population = 0
 
-    def save(self, observation, action, reward, done, mu):
+    def save(self, state, action, reward, done, mu):
+        observation = state[..., -1, None]
+
         if self._observations is None:
+            self._history_len = state.shape[-1]
             self._observations = np.empty(shape=[self._capacity, *observation.shape], dtype=observation.dtype)
 
             # Allocate memory for the cached states/actions/returns
-            self._cached_states = np.empty_like(np.concatenate(
-                self._history_len * [self._observations[:self._cache_size]], axis=-1))
+            self._cached_states = np.empty(shape=[self._cache_size, *state.shape], dtype=state.dtype)
             self._cached_actions = np.empty_like(self._actions[:self._cache_size])
             self._cached_returns = np.empty_like(self._rewards[:self._cache_size])
 
         self._push((observation, action, reward, done, mu))
-
-        if done:
-            self._image_stacker.reset()
 
         if self._back == self._front:
             # The memory is full; delete the oldest experience

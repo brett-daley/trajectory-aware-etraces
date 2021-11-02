@@ -121,19 +121,18 @@ def setup_env(game, seed):
 
 
 def train(env, agent, timesteps):
-    observation = env.reset()
+    state = env.reset()
 
     for t in itertools.count(start=1):
         if t >= timesteps and info['real_done']:
             env.close()
             break
 
-        state = agent.replay_memory.get_state(observation)
         action, mu = agent.policy(t, state)
-        next_observation, reward, done, info = env.step(action)
-        agent.update(t, observation, action, reward, done, mu)
+        next_state, reward, done, info = env.step(action)
+        agent.update(t, state, action, reward, done, mu)
 
-        observation = env.reset() if info['real_done'] else next_observation
+        state = env.reset() if info['real_done'] else next_state
 
 
 def main(kwargs):

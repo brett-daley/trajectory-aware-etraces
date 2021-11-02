@@ -5,6 +5,7 @@ from gym.spaces import Box
 import numpy as np
 
 from dqn.auto_monitor import AutoMonitor
+from dqn.image_stacker import ImageStacker
 
 
 def make(game):
@@ -20,10 +21,7 @@ def make(game):
     env = EpisodicLifeWrapper(env)
     env = ClippedRewardWrapper(env)
     env = PreprocessImageWrapper(env)
-
-    # Tell the rest of the code that we want to stack 4 observations together to form each "state"
-    shape = (*env._shape[:-1], 4 * env._shape[-1])
-    env.observation_space = Box(low=0, high=255, shape=shape, dtype=env.observation_space.dtype)
+    env = HistoryWrapper(env, history_len=4)
     return env
 
 
@@ -77,6 +75,28 @@ class FireResetWrapper(gym.Wrapper):
         self.env.reset()
         observation, _, _, _ = self.step(1)
         return observation
+
+
+class HistoryWrapper(gym.Wrapper):
+    """Stacks the previous `history_len` observations along their last axis.
+    Pads observations with zeros at the beginning of an episode."""
+    def __init__(self, env, history_len=4):
+        assert history_len > 1
+        super().__init__(env)
+        self._image_stacker = ImageStacker(history_len)
+
+        shape = self.observation_space.shape
+        self.observation_space.shape = (*shape[:-1], history_len * shape[-1])
+
+    def step(self, action):
+        observation, reward, done, info = self.env.step(action)
+        self._image_stacker.append(observation)
+        return self._image_stacker.get_stack(), reward, done, info
+
+    def reset(self):
+        observation = self.env.reset()
+        self._image_stacker.append(observation, reset=True)
+        return self._image_stacker.get_stack()
 
 
 class PreprocessImageWrapper(gym.ObservationWrapper):
