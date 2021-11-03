@@ -211,10 +211,11 @@ class ReplayMemory:
 
             # Compute the target policy probabilities (assuming epsilon-greedy policy)
             pi = epsilon_greedy_probabilities(q_values[i], pi_epsilon)
+            next_pi = epsilon_greedy_probabilities(q_values[i+1], pi_epsilon)
             mu = self._mu_policies[x]
 
             # Add the discounted expected value of the next state
-            returns[i] += self._discount * (pi * q_values[i+1]).sum()
+            returns[i] += self._discount * (next_pi * q_values[i+1]).sum()
 
             # Recursion: Propagate the discounted future multistep TD error backwards,
             # weighted by the current trace
