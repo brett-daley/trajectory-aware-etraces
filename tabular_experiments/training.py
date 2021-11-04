@@ -70,10 +70,9 @@ def train_V(V, episode, behavior_policy, target_policy, discount, etrace, learni
     updates = etrace(td_errors, target_policy[actions], behavior_policy[actions], dones)
 
     # Now apply the updates to each visited state-action pair
+    returns = V[states] + updates
     for t, (s, _, _, _, _) in enumerate(episode):
-        updates[t] += V[s]
-    for t, (s, _, _, _, _) in enumerate(episode):
-        V[s] += learning_rate * (updates[t] - V[s])
+        V[s] += learning_rate * (returns[t] - V[s])
 
 
 def train_Q(Q, episode, behavior_policy, target_policy, discount, etrace, learning_rate):
@@ -84,14 +83,14 @@ def train_Q(Q, episode, behavior_policy, target_policy, discount, etrace, learni
     states, actions, rewards, next_states, dones = map(np.array, zip(*episode))
     dones = dones.astype(np.float32)
     td_errors = rewards - Q[states, actions]
-    td_errors += discount * (1.0 - dones) * (target_policy * Q[next_states]).sum()
+    next_V = (target_policy[None] * Q[next_states]).sum(axis=1)
+    td_errors += discount * (1.0 - dones) * next_V
     updates = etrace(td_errors, target_policy[actions], behavior_policy[actions], dones)
 
     # Now apply the updates to each visited state-action pair
+    returns = Q[states, actions] + updates
     for t, (s, a, _, _, _) in enumerate(episode):
-        updates[t] += Q[s, a]
-    for t, (s, a, _, _, _) in enumerate(episode):
-        Q[s, a] += learning_rate * (updates[t] - Q[s, a])
+        Q[s, a] += learning_rate * (returns[t] - Q[s, a])
 
 
 def rms(x, y):
@@ -100,7 +99,7 @@ def rms(x, y):
 
 def run_trial_V(V_pi, experience, behavior_policy, target_policy, discount, estimator, lambd, learning_rate):
     etrace_cls = getattr(eligibility_traces, estimator)
-    etrace = etrace_cls(discount, lambd, maxlen=1_000_000)
+    etrace = etrace_cls(discount, lambd)
 
     V = np.zeros_like(V_pi)
     rms_errors = []
@@ -112,7 +111,7 @@ def run_trial_V(V_pi, experience, behavior_policy, target_policy, discount, esti
 
 def run_trial_Q(Q_pi, experience, behavior_policy, target_policy, discount, estimator, lambd, learning_rate):
     etrace_cls = getattr(eligibility_traces, estimator)
-    etrace = etrace_cls(discount, lambd, maxlen=1_000_000)
+    etrace = etrace_cls(discount, lambd)
 
     Q = np.zeros_like(Q_pi)
     rms_errors = []

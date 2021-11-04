@@ -1,7 +1,6 @@
 import numpy as np
 
-from dqn import eligibility_traces
-from dqn.experience_replay.traces import epsilon_greedy_probabilities
+from dqn.experience_replay import eligibility_traces
 
 
 class ReplayMemory:
@@ -15,7 +14,7 @@ class ReplayMemory:
 
         self._dqn = dqn
         self._discount = discount
-        self._etrace = getattr(eligibility_traces, return_estimator)(discount, lambd, maxlen=cache_size)
+        self._etrace = getattr(eligibility_traces, return_estimator)(discount, lambd)
 
         self._states = None
         self._actions = np.empty(capacity, dtype=np.int64)
@@ -86,37 +85,33 @@ class ReplayMemory:
         self._cache_indices = indices = np.array(indices)
         self._obsolete = 0  # Number of indices that have gone negative, meaning they were deleted
 
-        # Shorter names to make the code easier to read below
-        states, actions, rewards, dones, mu_policies = (
-            self._states, self._actions, self._rewards, self._dones, self._mu_policies)
-
         # Get Q-values from the DQN
-        q_values = np.empty_like(rewards, shape=[len(indices), self._dqn.n])
+        T = len(indices)
+        q_values = np.empty(shape=[T, self._dqn.n], dtype=self._rewards.dtype)
         for i in range(self._cache_size // self._block_size):
             s = slice(i * self._block_size, (i + 1) * self._block_size)
             x = self._absolute(indices[s])
-            q_values[s] = self._dqn.predict(states[x])
+            q_values[s] = self._dqn.predict(self._states[x])
 
         # Compute the multistep returns
-        assert dones[self._absolute(indices[-1])], "trajectory must end at an episode boundary"
-        for i in range(len(indices)):
-            x = self._absolute(indices[i])  # Absolute location in replay memory
-            a = actions[x]  # Action taken
+        timesteps = np.arange(T)
+        abs_indices = self._absolute(indices)
 
-            # Compute the target policy probabilities (assuming epsilon-greedy policy)
-            pi = epsilon_greedy_probabilities(q_values[i], pi_epsilon)
-            mu = mu_policies[x]
+        actions = self._actions[abs_indices]
+        dones = self._dones[abs_indices].astype(np.float32)
 
-            # Compute the TD error and update the eligibility trace
-            td_error = rewards[x] - q_values[i, a]
-            if not dones[x]:
-                # Add the discounted expected value of the next state
-                td_error += self._discount * (pi * q_values[i+1]).sum()
-            self._etrace.update(td_error, pi[a], mu[a], dones[x])
+        behavior_probs = self._mu_policies[abs_indices, actions]
+        pi = epsilon_greedy_probabilities(q_values, pi_epsilon)
+        target_probs = pi[timesteps, actions]
+
+        taken_q_values = q_values[timesteps, actions]
+        td_errors = self._rewards[abs_indices] - taken_q_values
+        # Bootstrap from the next state values if non-terminal
+        assert dones[-1], "trajectory must end at an episode boundary"
+        td_errors[:-1] += (self._discount * (1.0 - dones) * (pi * q_values).sum(axis=1))[1:]
 
         # Store returns for minibatch sampling later
-        updates = self._etrace.get_updates_and_reset()
-        taken_q_values = q_values[np.arange(len(indices)), actions[self._absolute(indices)]]
+        updates = self._etrace(td_errors, behavior_probs, target_probs, dones)
         self._returns = taken_q_values + updates
 
     def _find_episode_boundaries(self):
@@ -141,3 +136,21 @@ class ReplayMemory:
         lengths = (ends - starts) + 1
         assert lengths.sum() == ends[-1] - starts[0] + 1
         return starts, ends, lengths
+
+
+def epsilon_greedy_probabilities(q_values, epsilon):
+    assert q_values.ndim in {1, 2}, "Q-values must be a 1- or 2-dimensional vector"
+    assert 0.0 <= epsilon <= 1.0, "epsilon must be in the interval [0,1]"
+
+    is_1d = (q_values.ndim == 1)
+    if is_1d:
+        q_values = q_values[None]
+
+    n_actions = q_values.shape[-1]
+    probabilities = (epsilon / n_actions) * np.ones_like(q_values)
+    probabilities[np.arange(len(q_values)), np.argmax(q_values, axis=-1)] += (1.0 - epsilon)
+    assert np.allclose(probabilities.sum(axis=-1), 1.0)
+
+    if is_1d:
+        probabilities = probabilities[0]
+    return probabilities

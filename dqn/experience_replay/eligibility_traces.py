@@ -4,37 +4,37 @@ import numpy as np
 
 
 class OfflineEligibilityTrace(ABC):
-    def __init__(self, discount, lambd, maxlen):
+    def __init__(self, discount, lambd):
         assert 0.0 <= discount <= 1.0
         assert 0.0 <= lambd <= 1.0
         self._discount = discount
         self._lambd = lambd
 
-        assert maxlen > 0
-        self._maxlen = maxlen
+    def __call__(self, td_errors, behavior_probs, target_probs, dones):
+        L = len(td_errors)
+        for array in [behavior_probs, target_probs, dones]:
+            assert array.ndim == 1
+            assert L == len(array)
 
-    def __call__(self, td_errors, target_probs, behavior_probs, dones):
-        assert len(td_errors) == len(target_probs) == len(behavior_probs) == len(dones)
-
-        eligibility = np.zeros(self._maxlen, dtype=np.float64)
-        updates = np.zeros(self._maxlen, dtype=np.float64)
+        eligibility = np.zeros(L)
+        updates = np.zeros(L)
 
         current_episode_start = 0
-        for t in range(len(td_errors)):
-            assert t < self._maxlen
-
+        for t in range(L):  # For each timestep in the trajectory:
+            # Decay all past eligibilities
             sl = slice(current_episode_start, t)
-
             trace = self._trace_coefficient(target_probs[t], behavior_probs[t])
             eligibility[sl] *= self._discount * trace
+
+            # Increment eligibility of current timestep
             eligibility[t] += 1.0
 
+            # Apply current TD error to all past/current timesteps in proportion to eligibilities
             sl = slice(current_episode_start, t + 1)
-
             updates[sl] += td_errors[t] * eligibility[sl]
 
             if dones[t]:
-                current_episode_start = t
+                current_episode_start = t + 1
 
         return updates
 
@@ -66,44 +66,41 @@ class Retrace(OfflineEligibilityTrace):
 
 
 class Moretrace(OfflineEligibilityTrace):
-    def _reset(self):
-        super()._reset()
-        self._eligibility = None
-        self._trace_products = np.zeros(self._maxlen, dtype=np.float64)
-        self._discounting = np.zeros(self._maxlen, dtype=np.float64)
-        self._lambda_products = np.zeros(self._maxlen, dtype=np.float64)
+    def __call__(self, td_errors, behavior_probs, target_probs, dones):
+        assert (behavior_probs > 0.0).all()
 
-    def update(self, td_error, target_prob, behavior_prob, done):
-        assert self._t < self._maxlen
+        L = len(td_errors)
+        for array in [behavior_probs, target_probs, dones]:
+            assert array.ndim == 1
+            assert L == len(array)
 
-        sl = slice(self._current_episode_start, self._t)
+        # The eligibility has been split into subcomponents for efficiency
+        discount_products = np.zeros(L)
+        lambda_products = np.zeros(L)
+        isratio_products = np.zeros(L)
+        updates = np.zeros(L)
 
-        self._trace_products[sl] *= self._trace_coefficient(target_prob, behavior_prob)
-        self._discounting[sl] *= self._discount
-        self._lambda_products[sl] *= self._lambd
+        current_episode_start = 0
+        for t in range(L):  # For each timestep in the trajectory:
+            # Decay all past eligibilities
+            sl = slice(current_episode_start, t)
+            discount_products[sl] *= self._discount
+            lambda_products[sl] *= self._lambd
+            isratio_products[sl] *= (target_probs[t] / behavior_probs[t])
 
-        self._trace_products[self._t] += 1.0
-        self._discounting[self._t] += 1.0
-        self._lambda_products[self._t] += 1.0
+            # Increment eligibility of current timestep
+            for array in [discount_products, lambda_products, isratio_products]:
+                array[t] += 1.0
 
-        sl = slice(self._current_episode_start, self._t + 1)
+            # Apply current TD error to all past/current timesteps in proportion to eligibilities
+            sl = slice(current_episode_start, t + 1)
+            eligibility = discount_products[sl] * np.minimum(lambda_products[sl], isratio_products[sl])
+            updates[sl] += td_errors[t] * eligibility
 
-        self._updates[sl] += td_error * self._discounting[sl] \
-            * np.minimum(self._lambda_products[sl], self._trace_products[sl])
+            if dones[t]:
+                current_episode_start = t + 1
 
-        self._t += 1
-
-        if done:
-            self._current_episode_start = self._t
+        return updates
 
     def _trace_coefficient(self, target_prob, behavior_prob):
-        assert behavior_prob > 0.0
-        return target_prob / behavior_prob
-
-
-def epsilon_greedy_probabilities(q_values, epsilon):
-    assert q_values.ndim in {1, 2}, "Q-values must be a 1- or 2-dimensional vector"
-    n = q_values.shape[-1]
-    probabilities = (epsilon / n) * np.ones_like(q_values)
-    probabilities[..., np.argmax(q_values)] += (1.0 - epsilon)
-    return probabilities
+        raise NotImplementedError
