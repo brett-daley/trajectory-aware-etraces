@@ -1,7 +1,6 @@
 import numpy as np
 
-from dqn.experience_replay.replay_memory import ReplayMemory
-from dqn.experience_replay.traces import get_trace_function, epsilon_greedy_probabilities
+from dqn.experience_replay.replay_memory import ReplayMemory, epsilon_greedy_probabilities
 
 
 class OldReplayMemory(ReplayMemory):

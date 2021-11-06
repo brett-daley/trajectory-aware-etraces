@@ -10,8 +10,7 @@ from tensorflow.keras.optimizers import Adam
 
 from dqn import atari_env
 from dqn.deep_q_network import DeepQNetwork
-from dqn.experience_replay import AblatedReplayMemory, ReplayMemory, OldReplayMemory
-from dqn.experience_replay.traces import epsilon_greedy_probabilities
+from dqn.experience_replay import AblatedReplayMemory, ReplayMemory, OldReplayMemory, epsilon_greedy_probabilities
 
 os.environ['TF_DETERMINISTIC_OPS'] = '1'
 

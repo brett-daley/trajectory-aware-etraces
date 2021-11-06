@@ -1,3 +1,3 @@
 from dqn.experience_replay.ablated_replay_memory import AblatedReplayMemory
-from dqn.experience_replay.replay_memory import ReplayMemory
+from dqn.experience_replay.replay_memory import ReplayMemory, epsilon_greedy_probabilities
 from dqn.experience_replay.old_replay_memory import OldReplayMemory
