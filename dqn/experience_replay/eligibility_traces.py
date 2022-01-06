@@ -66,11 +66,6 @@ class Retrace(OfflineEligibilityTrace):
 
 
 class Moretrace(OfflineEligibilityTrace):
-    def __init__(self, discount, lambd, p=0.5):
-        super().__init__(discount, lambd)
-        assert 0.0 <= p <= 1.0
-        self._p = p
-
     def __call__(self, td_errors, behavior_probs, target_probs, dones):
         assert (behavior_probs > 0.0).all()
 
@@ -82,7 +77,7 @@ class Moretrace(OfflineEligibilityTrace):
         # The eligibility has been split into subcomponents for efficiency
         decay_products = np.ones(L)
         isratio_products = np.ones(L)
-        retrace_products = np.ones(L)
+        min_isratio_products = np.ones(L)
         updates = np.zeros(L)
 
         current_episode_start = 0
@@ -90,15 +85,12 @@ class Moretrace(OfflineEligibilityTrace):
             # Decay all past eligibilities
             sl = slice(current_episode_start, t)
             decay_products[sl] *= self._discount * self._lambd
-            ratio = target_probs[t] / behavior_probs[t]
-            isratio_products[sl] *= ratio
-            retrace_products[sl] *= min(1.0, ratio)
+            isratio_products[sl] *= target_probs[t] / behavior_probs[t]
+            min_isratio_products[sl] = np.minimum(min_isratio_products[sl], isratio_products[sl])
 
             # Apply current TD error to all past/current timesteps in proportion to eligibilities
             sl = slice(current_episode_start, t + 1)
-            eligibility = decay_products[sl] \
-                            * np.minimum(1.0, isratio_products[sl]) ** self._p \
-                            * retrace_products[sl] ** (1.0 - self._p)
+            eligibility = decay_products[sl] * min_isratio_products[sl]
             updates[sl] += td_errors[t] * eligibility
 
             if dones[t]:
