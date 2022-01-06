@@ -81,8 +81,7 @@ class DQNAgent:
             return
 
         if t % self._target_update_freq == 1:
-            epsilon = self._epsilon_schedule(t)
-            self.replay_memory.refresh_cache(epsilon)
+            self.replay_memory.refresh_cache(pi_epsilon=0.05)
 
             for minibatch in self.replay_memory.iterate_cache(self._batches_per_epoch, self._batch_size):
                 self._dqn.train(*minibatch)
