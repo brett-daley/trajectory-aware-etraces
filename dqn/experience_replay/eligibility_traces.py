@@ -75,21 +75,22 @@ class Moretrace(OfflineEligibilityTrace):
             assert L == len(array)
 
         # The eligibility has been split into subcomponents for efficiency
-        decay_products = np.ones(L)
-        decay_rate = np.ones(L)
+        discount_products = np.ones(L)
+        lambda_products = np.ones(L)
+        isratio_products = np.ones(L)
         updates = np.zeros(L)
 
         current_episode_start = 0
         for t in range(L):  # For each timestep in the trajectory:
             # Decay all past eligibilities
             sl = slice(current_episode_start, t)
-            isratio = target_probs[t] / behavior_probs[t]
-            decay_rate[sl] = np.minimum(decay_rate[sl], isratio)
-            decay_products[sl] *= self._discount * self._lambd * decay_rate[sl]
+            discount_products[sl] *= self._discount
+            lambda_products[sl] *= self._lambd
+            isratio_products[sl] *= (target_probs[t] / behavior_probs[t])
 
             # Apply current TD error to all past/current timesteps in proportion to eligibilities
             sl = slice(current_episode_start, t + 1)
-            eligibility = decay_products[sl]
+            eligibility = discount_products[sl] * np.minimum(lambda_products[sl], isratio_products[sl])
             updates[sl] += td_errors[t] * eligibility
 
             if dones[t]:
