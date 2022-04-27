@@ -7,8 +7,8 @@ class OfflineEligibilityTrace(ABC):
     def __init__(self, discount, lambd):
         assert 0.0 <= discount <= 1.0
         assert 0.0 <= lambd <= 1.0
-        self._discount = discount
-        self._lambd = lambd
+        self.discount = discount
+        self.lambd = lambd
 
     def __call__(self, td_errors, behavior_probs, target_probs, dones):
         L = len(td_errors)
@@ -24,7 +24,7 @@ class OfflineEligibilityTrace(ABC):
             # Decay all past eligibilities
             sl = slice(current_episode_start, t)
             trace = self._trace_coefficient(target_probs[t], behavior_probs[t])
-            eligibility[sl] *= self._discount * trace
+            eligibility[sl] *= self.discount * trace
 
             # Increment eligibility of current timestep
             eligibility[t] += 1.0
@@ -46,23 +46,23 @@ class OfflineEligibilityTrace(ABC):
 class IS(OfflineEligibilityTrace):
     def _trace_coefficient(self, target_prob, behavior_prob):
         assert behavior_prob > 0.0
-        return self._lambd * target_prob / behavior_prob
+        return self.lambd * target_prob / behavior_prob
 
 
 class Qlambda(OfflineEligibilityTrace):
     def _trace_coefficient(self, target_prob, behavior_prob):
-        return self._lambd
+        return self.lambd
 
 
 class TB(OfflineEligibilityTrace):
     def _trace_coefficient(self, target_prob, behavior_prob):
-        return self._lambd * target_prob
+        return self.lambd * target_prob
 
 
 class Retrace(OfflineEligibilityTrace):
     def _trace_coefficient(self, target_prob, behavior_prob):
         assert behavior_prob > 0.0
-        return self._lambd * min(1.0, target_prob / behavior_prob)
+        return self.lambd * min(1.0, target_prob / behavior_prob)
 
 
 class Moretrace(OfflineEligibilityTrace):
@@ -84,8 +84,8 @@ class Moretrace(OfflineEligibilityTrace):
         for t in range(L):  # For each timestep in the trajectory:
             # Decay all past eligibilities
             sl = slice(current_episode_start, t)
-            discount_products[sl] *= self._discount
-            lambda_products[sl] *= self._lambd
+            discount_products[sl] *= self.discount
+            lambda_products[sl] *= self.lambd
             isratio_products[sl] *= (target_probs[t] / behavior_probs[t])
 
             # Increment eligibility of current timestep

@@ -58,7 +58,8 @@ def sample_episodes(env_id, behavior_policy, n_episodes, seed):
     return env, tuple(episodes)
 
 
-def train_V(V, episode, behavior_policy, target_policy, discount, etrace, learning_rate):
+def train_V(V, episode, behavior_policy, target_policy, etrace, learning_rate):
+    discount = etrace.discount
     assert 0.0 <= discount <= 1.0
     assert 0.0 <= learning_rate <= 1.0
 
@@ -75,7 +76,8 @@ def train_V(V, episode, behavior_policy, target_policy, discount, etrace, learni
         V[s] += learning_rate * (returns[t] - V[s])
 
 
-def train_Q(Q, episode, behavior_policy, target_policy, discount, etrace, learning_rate):
+def train_Q(Q, episode, behavior_policy, target_policy, etrace, learning_rate):
+    discount = etrace.discount
     assert 0.0 <= discount <= 1.0
     assert 0.0 <= learning_rate <= 1.0
 
@@ -97,26 +99,28 @@ def rms(x, y):
     return np.sqrt(np.mean(np.square(x - y)))
 
 
-def run_trial_V(V_pi, experience, behavior_policy, target_policy, discount, estimator, lambd, learning_rate):
-    etrace_cls = getattr(eligibility_traces, estimator)
-    etrace = etrace_cls(discount, lambd)
+def run_trial_V(env_id, behavior_policy, target_policy, etrace, learning_rate, n_episodes, seed):
+    env, experience = sample_episodes(env_id, behavior_policy, n_episodes, seed)
 
-    V = np.zeros_like(V_pi)
+    V = np.zeros([env.observation_space.n], dtype=np.float64)
+    V_pi = policy_evaluation_V(env, etrace.discount, target_policy, precision=1e-9)
+
     rms_errors = []
     for episode in experience:
-        train_V(V, episode, behavior_policy, target_policy, discount, etrace, learning_rate)
+        train_V(V, episode, behavior_policy, target_policy, etrace, learning_rate)
         rms_errors.append(rms(V, V_pi))
     return rms_errors
 
 
-def run_trial_Q(Q_pi, experience, behavior_policy, target_policy, discount, estimator, lambd, learning_rate):
-    etrace_cls = getattr(eligibility_traces, estimator)
-    etrace = etrace_cls(discount, lambd)
+def run_trial_Q(env_id, behavior_policy, target_policy, etrace, learning_rate, n_episodes, seed):
+    env, experience = sample_episodes(env_id, behavior_policy, n_episodes, seed)
 
-    Q = np.zeros_like(Q_pi)
+    Q = np.zeros([env.observation_space.n, env.action_space.n], dtype=np.float64)
+    Q_pi = policy_evaluation_Q(env, etrace.discount, target_policy, precision=1e-9)
+
     rms_errors = []
     for episode in experience:
-        train_Q(Q, episode, behavior_policy, target_policy, discount, etrace, learning_rate)
+        train_Q(Q, episode, behavior_policy, target_policy, etrace, learning_rate)
         rms_errors.append(rms(Q, Q_pi))
     return rms_errors
 
@@ -129,22 +133,16 @@ def run_sweep_V(env_id, behavior_policy, target_policy, discount, return_estimat
     n_seeds = len(list(seeds))
 
     all_combos = tuple(product(return_estimators, lambda_values, learning_rates))
-    V_pi = None
     results = defaultdict(list)
 
     key_to_future_dict = {}
     with ProcessPoolExecutor() as executor:
         for s in seeds:
-            env, experience = sample_episodes(env_id, behavior_policy, n_episodes, seed=s)
-
-            if V_pi is None:
-                V_pi = policy_evaluation_V(env, discount, target_policy, precision=1e-9)
-                V_pi.flags.writeable = False
-
             for (estimator, lambd, lr) in all_combos:
                 key = (estimator, lambd, lr, s)
-                future = executor.submit(run_trial_V, V_pi, experience,
-                    behavior_policy, target_policy, discount, estimator, lambd, lr)
+                etrace = getattr(eligibility_traces, estimator)(discount, lambd)
+                future = executor.submit(run_trial_V, env_id,
+                    behavior_policy, target_policy, etrace, lr, n_episodes, seed=s)
                 key_to_future_dict[key] = future
 
     for key in key_to_future_dict.keys():
@@ -173,22 +171,16 @@ def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimat
     n_seeds = len(list(seeds))
 
     all_combos = tuple(product(return_estimators, lambda_values, learning_rates))
-    Q_pi = None
     results = defaultdict(list)
 
     key_to_future_dict = {}
     with ProcessPoolExecutor() as executor:
         for s in seeds:
-            env, experience = sample_episodes(env_id, behavior_policy, n_episodes, seed=s)
-
-            if Q_pi is None:
-                Q_pi = policy_evaluation_Q(env, discount, target_policy, precision=1e-9)
-                Q_pi.flags.writeable = False
-
             for (estimator, lambd, lr) in all_combos:
                 key = (estimator, lambd, lr, s)
-                future = executor.submit(run_trial_Q, Q_pi, experience,
-                    behavior_policy, target_policy, discount, estimator, lambd, lr)
+                etrace = getattr(eligibility_traces, estimator)(discount, lambd)
+                future = executor.submit(run_trial_Q, env_id,
+                    behavior_policy, target_policy, etrace, lr, n_episodes, seed=s)
                 key_to_future_dict[key] = future
 
     for key in key_to_future_dict.keys():
