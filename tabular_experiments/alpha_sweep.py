@@ -1,17 +1,17 @@
 from collections import defaultdict
 import os
 
+import gym_classics
 import matplotlib.pyplot as plt
 import numpy as np
 
 from training import run_sweep_V, run_sweep_Q
-import walk19_no_op
 
 
 if __name__ == '__main__':
     discount = 1.0
     return_estimators = ['Retrace', 'Moretrace']
-    lambda_values = [0.0, 0.4, 0.8, 0.9, 0.95, 0.975, 0.99, 1.0]
+    lambda_values = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     learning_rates = np.linspace(0, 1, 51)
     seeds = range(10)
 
@@ -19,9 +19,9 @@ if __name__ == '__main__':
     # target_policy = np.array([0.5, 0.5])
     # results = run_sweep_V('19Walk-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
 
-    behavior_policy = np.array([1/3, 1/3, 1/3])
-    target_policy = np.array([1/6, 1/6, 2/3])
-    results = run_sweep_Q('19WalkNoOp-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
+    behavior_policy = np.array([0.6, 0.4])
+    target_policy = np.array([0.5, 0.5])
+    results = run_sweep_Q('19Walk-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
 
     # Plot RMS vs Learning Rate
     for lambd in lambda_values:

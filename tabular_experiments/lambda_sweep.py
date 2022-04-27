@@ -1,19 +1,17 @@
 from collections import defaultdict
 import os
 
+import gym_classics
 import matplotlib.pyplot as plt
 import numpy as np
 
 from training import run_sweep_V, run_sweep_Q
-import walk19_no_op
 
 
 if __name__ == '__main__':
     discount = 1.0
     return_estimators = ['Retrace', 'Moretrace']
-    lambda_values = sorted(
-        [round(0.05 * i, 2) for i in range(21)] \
-        + [0.96, 0.97, 0.98, 0.99])
+    lambda_values = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     learning_rates = np.linspace(0, 1, 51)
     seeds = range(10)
 
@@ -21,9 +19,9 @@ if __name__ == '__main__':
     # target_policy = np.array([0.5, 0.5])
     # results = run_sweep_V('19Walk-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
 
-    behavior_policy = np.array([1/3, 1/3, 1/3])
-    target_policy = np.array([1/6, 1/6, 2/3])
-    results = run_sweep_Q('19WalkNoOp-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
+    behavior_policy = np.array([0.6, 0.4])
+    target_policy = np.array([0.5, 0.5])
+    results = run_sweep_Q('19Walk-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
 
     # Plot Best RMS vs Lambda
     plt.figure()
