@@ -33,6 +33,9 @@ class OfflineEligibilityTrace(ABC):
             sl = slice(current_episode_start, t + 1)
             updates[sl] += td_errors[t] * eligibility[sl]
 
+            # Uncomment for trace decay experiment:
+            # print(eligibility[0])
+
             if dones[t]:
                 current_episode_start = t + 1
 
@@ -96,6 +99,9 @@ class Moretrace(OfflineEligibilityTrace):
             sl = slice(current_episode_start, t + 1)
             eligibility = discount_products[sl] * np.minimum(lambda_products[sl], isratio_products[sl])
             updates[sl] += td_errors[t] * eligibility
+
+            # Uncomment for trace decay experiment:
+            # print(eligibility[0])
 
             if dones[t]:
                 current_episode_start = t + 1
