@@ -11,9 +11,9 @@ from training import run_sweep_V, run_sweep_Q
 if __name__ == '__main__':
     discount = 1.0
     return_estimators = ['Retrace', 'Moretrace']
-    lambda_values = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-    learning_rates = np.linspace(0, 1, 51)
-    seeds = range(10)
+    lambda_values = [0.025 * i for i in range(41)]
+    learning_rates = np.linspace(0, 1, 26)
+    seeds = range(100)
 
     # behavior_policy = np.array([0.5, 0.5])
     # target_policy = np.array([0.5, 0.5])
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     plt.figure()
     plt.xlim([0, 1])
     plt.xticks(np.linspace(0.0, 1.0, 10 + 1))
-    plt.ylim([0.0, 0.55])
+    plt.ylim([0.0, 0.35])
 
     for estimator in return_estimators:
         X, Y, ERROR = [], [], []

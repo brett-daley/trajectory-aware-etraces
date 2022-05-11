@@ -53,7 +53,7 @@ def sample_episodes(env_id, behavior_policy, n_episodes, seed):
             action = random_state.choice(env.action_space.n, p=behavior_policy)
             next_state, reward, done, _ = env.step(action)
             transitions.append( (state, action, reward, next_state, done) )
-            state = next_state if not done else env.reset()
+            state = next_state
         episodes.append(tuple(transitions))
     return env, tuple(episodes)
 
@@ -70,7 +70,7 @@ def train_V(V, episode, behavior_policy, target_policy, etrace, learning_rate):
     td_errors += discount * (1.0 - dones) * V[next_states]
     updates = etrace(td_errors, target_policy[actions], behavior_policy[actions], dones)
 
-    # Now apply the updates to each visited state-action pair
+    # Now apply the updates to each visited state
     returns = V[states] + updates
     for t, (s, _, _, _, _) in enumerate(episode):
         V[s] += learning_rate * (returns[t] - V[s])
@@ -93,6 +93,7 @@ def train_Q(Q, episode, behavior_policy, target_policy, etrace, learning_rate):
     returns = Q[states, actions] + updates
     for t, (s, a, _, _, _) in enumerate(episode):
         Q[s, a] += learning_rate * (returns[t] - Q[s, a])
+    # print(Q.mean(axis=1))
 
 
 def rms(x, y):
@@ -167,7 +168,7 @@ def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimat
     assert behavior_policy.sum() == 1.0
     assert target_policy.sum() == 1.0
 
-    n_episodes = 100
+    n_episodes = 300
     n_seeds = len(list(seeds))
 
     all_combos = tuple(product(return_estimators, lambda_values, learning_rates))
@@ -193,8 +194,18 @@ def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimat
         rms_errors = np.array(results[key])
         assert rms_errors.shape == (n_seeds, n_episodes)
 
+        # Grab the final error instead of averaging over the list of errors
+        rms_errors = rms_errors[:, -1:]
+        assert rms_errors.shape == (n_seeds, 1)
+
         mean = np.mean(rms_errors)
-        error = np.std(rms_errors.mean(axis=1), ddof=1)
+        # 95% confidence interval
+        error = 1.96 * np.std(rms_errors.mean(axis=1), ddof=1) / np.sqrt(n_seeds)
+
+        # Hide error bars if we exceed the y-axis
+        if mean >= 0.55:
+            error = 0.0
+
         results[key] = (mean, error)
         print('{:.3f}'.format(lr), '{:.3f}'.format(lambd), mean, error)
 

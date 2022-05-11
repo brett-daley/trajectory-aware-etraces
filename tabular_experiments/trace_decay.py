@@ -22,7 +22,7 @@ def sample_episode(env_id, behavior_policy, seed):
         action = random_state.choice(env.action_space.n, p=behavior_policy)
         next_state, reward, done, _ = env.step(action)
         transitions.append( (state, action, reward, next_state, done) )
-        state = next_state if not done else env.reset()
+        state = next_state
     return tuple(transitions)
 
 
