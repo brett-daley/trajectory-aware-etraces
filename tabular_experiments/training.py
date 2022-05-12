@@ -168,7 +168,7 @@ def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimat
     assert behavior_policy.sum() == 1.0
     assert target_policy.sum() == 1.0
 
-    n_episodes = 300
+    n_episodes = 25
     n_seeds = len(list(seeds))
 
     all_combos = tuple(product(return_estimators, lambda_values, learning_rates))
@@ -199,11 +199,11 @@ def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimat
         assert rms_errors.shape == (n_seeds, 1)
 
         mean = np.mean(rms_errors)
-        # 95% confidence interval
-        error = 1.96 * np.std(rms_errors.mean(axis=1), ddof=1) / np.sqrt(n_seeds)
+        # 99% confidence interval
+        error = 2.576 * np.std(rms_errors.mean(axis=1), ddof=1) / np.sqrt(n_seeds)
 
         # Hide error bars if we exceed the y-axis
-        if mean >= 0.55:
+        if mean >= 1.0:
             error = 0.0
 
         results[key] = (mean, error)

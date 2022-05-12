@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     plt.xlim([0, MAXLEN - 1])
     plt.ylim([0.0, 1.0])
-    plt.grid(visible=True, which='both', axis='both')
+    # plt.grid(visible=True, which='both', axis='both')
 
     plt.legend(loc='best', framealpha=1.0, fontsize=16)
 
