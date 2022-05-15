@@ -175,7 +175,7 @@ def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimat
         for s in seeds:
             for (estimator, lambd, lr) in all_combos:
                 key = (estimator, lambd, lr, s)
-                etrace = getattr(eligibility_traces, estimator)(discount, lambd)
+                etrace = getattr(eligibility_traces, estimator.replace(' ', ''))(discount, lambd)
                 future = executor.submit(run_trial_Q, env_id,
                     behavior_policy, target_policy, etrace, lr, n_episodes, seed=s)
                 key_to_future_dict[key] = future
