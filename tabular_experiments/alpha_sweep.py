@@ -39,9 +39,9 @@ def postformat_plots():
 if __name__ == '__main__':
     discount = 1.0
     return_estimators = ['Retrace', 'Moretrace']
-    lambda_values = [0.2, 0.4, 0.6, 0.8, 0.9, 0.95]
+    lambda_values = [0.5, 0.6, 0.7]
     learning_rates = np.linspace(0, 1, 51)
-    seeds = range(50)
+    seeds = range(100)
 
     # behavior_policy = np.array([0.5, 0.5])
     # target_policy = np.array([0.5, 0.5])

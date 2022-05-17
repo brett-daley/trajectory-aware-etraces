@@ -34,8 +34,8 @@ if __name__ == '__main__':
     parser.add_argument('--lambd', type=float, default=0.8)
     args = parser.parse_args()
 
-    behavior_policy = np.array([0.6, 0.4])
-    target_policy = np.array([0.5, 0.5])
+    behavior_policy = np.array([0.5, 0.5])
+    target_policy = np.array([0.1, 0.9])
     episode = sample_episode('19Walk-v0', behavior_policy, args.seed)
 
     # NOTE: Need to edit the e-trace classes to make sure they print out the data,
