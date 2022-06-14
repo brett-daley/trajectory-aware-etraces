@@ -15,7 +15,7 @@ if __name__ == '__main__':
     plt.figure()
 
     n = 100
-    for estimator in ['Retrace', 'Moretrace', 'Truncated IS']:
+    for estimator in ['Retrace', 'Moretrace', 'Recursive Retrace', 'Truncated IS']:
         trajectories = []
         for seed in range(n):
             eligibilities = np.loadtxt(f"data/{estimator.replace(' ', '')}_{seed}.txt")

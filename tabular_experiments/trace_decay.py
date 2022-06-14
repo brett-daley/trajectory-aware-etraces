@@ -29,9 +29,9 @@ def sample_episode(env_id, behavior_policy, seed):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('estimator', type=str)
+    parser.add_argument('lambd', type=float)
     parser.add_argument('seed', type=int)
     parser.add_argument('--discount', type=float, default=1.0)
-    parser.add_argument('--lambd', type=float, default=0.8)
     args = parser.parse_args()
 
     behavior_policy = np.array([0.5, 0.5])
