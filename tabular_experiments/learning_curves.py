@@ -10,7 +10,7 @@ from training import run_sweep_Q
 
 if __name__ == '__main__':
     discount = 1.0
-    return_estimators = ['Retrace', 'Moretrace', 'Recursive Retrace', 'Truncated IS']
+    return_estimators = ['Retrace', 'Moretrace', 'Moretrace2', 'Recursive Retrace', 'Truncated IS']
     lambda_values = np.linspace(0, 1, 21)
     learning_rates = np.linspace(0, 1, 21)[1:-1]  # Don't test alpha = {0,1}
     seeds = range(100)

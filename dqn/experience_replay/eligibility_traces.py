@@ -131,6 +131,57 @@ class Moretrace(OfflineEligibilityTrace):
         return discount_products * np.minimum(lambda_products, isratio_products)
 
 
+class Moretrace2(Moretrace):
+    def __call__(self, td_errors, behavior_probs, target_probs, dones):
+        assert (behavior_probs > 0.0).all()
+
+        L = len(td_errors)
+        for array in [behavior_probs, target_probs, dones]:
+            assert array.ndim == 1
+            assert L == len(array)
+
+        # The eligibility has been split into subcomponents for efficiency
+        discount_products = np.zeros(L)
+        lambda_products = np.zeros(L)
+        isratio_products = np.zeros(L)
+        eligibilities = np.ones(L)
+        updates = np.zeros(L)
+
+        isratios = behavior_probs / target_probs
+        assert len(isratios) == L
+
+        current_episode_start = 0
+        for t in range(L):  # For each timestep in the trajectory:
+            # Decay all past eligibilities
+            sl = slice(current_episode_start, t)
+            discount_products[sl] *= self.discount
+            lambda_products[sl] *= self.lambd
+            isratio_products[sl] *= isratios[t]
+
+            # Increment eligibility of current timestep
+            for array in [discount_products, lambda_products, isratio_products]:
+                array[t] += 1.0
+
+            # Apply current TD error to all past/current timesteps in proportion to eligibilities
+            sl = slice(current_episode_start, t + 1)
+            eligibilities[sl] = self._compute_eligibility(lambda_products[sl], isratio_products[sl], isratios[sl], eligibilities[sl])
+            updates[sl] += td_errors[t] * discount_products[sl] * eligibilities[sl]
+
+            # Decay must come *after* update
+            eligibilities[sl] *= isratios[sl]
+
+            # Uncomment for trace decay experiment:
+            # print(eligibility[0])
+
+            if dones[t]:
+                current_episode_start = t + 1
+
+        return updates
+
+    def _compute_eligibility(self, lambda_products, isratio_products, isratios, eligibilities):
+        return np.minimum(lambda_products, eligibilities)
+
+
 class TruncatedIS(Moretrace):
     def _compute_eligibility(self, discount_products, lambda_products, isratio_products):
         return discount_products * lambda_products * np.minimum(1.0, isratio_products)
