@@ -68,7 +68,7 @@ def train_V(V, episode, behavior_policy, target_policy, etrace, learning_rate):
     dones = dones.astype(np.float32)
     td_errors = rewards - V[states]
     td_errors += discount * (1.0 - dones) * V[next_states]
-    updates = etrace(td_errors, target_policy[actions], behavior_policy[actions], dones)
+    updates = etrace(td_errors, behavior_policy[actions], target_policy[actions], dones)
 
     # Now apply the updates to each visited state
     returns = V[states] + updates
@@ -87,7 +87,7 @@ def train_Q(Q, episode, behavior_policy, target_policy, etrace, learning_rate):
     td_errors = rewards - Q[states, actions]
     next_V = (target_policy[None] * Q[next_states]).sum(axis=1)
     td_errors += discount * (1.0 - dones) * next_V
-    updates = etrace(td_errors, target_policy[actions], behavior_policy[actions], dones)
+    updates = etrace(td_errors, behavior_policy[actions], target_policy[actions], dones)
 
     # Now apply the updates to each visited state-action pair
     returns = Q[states, actions] + updates
