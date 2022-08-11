@@ -8,12 +8,11 @@ import numpy as np
 # Change this import statement to test a different method:
 from dqn.experience_replay.eligibility_traces import Retrace as etrace_cls
 from training import sample_episodes
-import walk5_dual_reward
 
 
 def test(behavior_policy, target_policy, discount, lambd):
     # Sample episodes from the random walk
-    env, episodes = sample_episodes('5WalkDualReward-v0', behavior_policy, n_episodes=2, seed=2)
+    env, episodes = sample_episodes('5Walk-v0', behavior_policy, n_episodes=1, seed=3)
     transitions = tuple(itertools.chain(*episodes))
 
     # Convert transitions to numpy arrays
@@ -43,6 +42,6 @@ if __name__ == '__main__':
     print('---')
 
     # Test case 2: Check that importance sampling is working.
-    behavior_policy = np.array([1/3, 2/3])
-    target_policy = np.array([2/3, 1/3])
+    behavior_policy = np.array([0.5, 0.5])
+    target_policy = np.array([0.1, 0.9])
     test(behavior_policy, target_policy, discount=1.0, lambd=1.0)

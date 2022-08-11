@@ -64,7 +64,7 @@ class TrajectoryAwareEligibilityTrace(EligibilityTrace):
         discount_products = np.ones(L)
         lambda_products = np.ones(L)
         isratio_products = np.ones(L)
-        eligibilities = np.ones(L)
+        betas = np.ones(L)
         updates = np.zeros(L)
         isratios = target_probs / behavior_probs
 
@@ -75,11 +75,12 @@ class TrajectoryAwareEligibilityTrace(EligibilityTrace):
             discount_products[sl] *= self.discount
             lambda_products[sl] *= self.lambd
             isratio_products[sl] *= isratios[t]
-            eligibilities[sl] = discount_products[sl] * self._compute_eligibility(lambda_products[sl], isratio_products[sl], isratios[sl], eligibilities[sl])
+            betas[sl] = self._compute_betas(lambda_products[sl], isratio_products[sl], isratios[t], betas[sl])
 
             # Apply current TD error to all past/current timesteps in proportion to eligibilities
             sl = slice(current_episode_start, t + 1)
-            updates[sl] += td_errors[t] * eligibilities[sl]
+            eligibilities = discount_products[sl] * betas[sl]
+            updates[sl] += td_errors[t] * eligibilities
 
             if VERBOSE:
                 if current_episode_start == 0:
@@ -94,7 +95,7 @@ class TrajectoryAwareEligibilityTrace(EligibilityTrace):
         pass
 
     @abstractmethod
-    def _compute_eligibility(self, lambda_products, isratio_products):
+    def _compute_betas(self, lambda_products, isratio_products, isratio, betas):
         raise NotImplementedError
 
 
@@ -120,32 +121,26 @@ class Retrace(EligibilityTrace):
         return self.lambd * min(1.0, target_prob / behavior_prob)
 
 
-class RecursiveRetrace(EligibilityTrace):
-    def _on_done(self):
-        self._trace_history = 1.0
-
-    def _trace_coefficient(self, target_prob, behavior_prob):
-        assert behavior_prob > 0.0
-        trace = self.lambd * min(1.0 / (self._trace_history + 1e-6), target_prob / behavior_prob)
-        self._trace_history *= trace
-        return trace
-
-
 class Moretrace(TrajectoryAwareEligibilityTrace):
-    def _compute_eligibility(self, lambda_products, isratio_products, isratios, eligibilities):
+    def _compute_betas(self, lambda_products, isratio_products, isratio, betas):
         return np.minimum(lambda_products, isratio_products)
 
 
 class Moretrace2(TrajectoryAwareEligibilityTrace):
-    def _compute_eligibility(self, lambda_products, isratio_products, isratios, eligibilities):
-        return np.minimum(lambda_products, eligibilities * isratios)
+    def _compute_betas(self, lambda_products, isratio_products, isratio, betas):
+        return np.minimum(lambda_products, betas * isratio)
 
 
-class RecursiveRetrace2(TrajectoryAwareEligibilityTrace):
-    def _compute_eligibility(self, lambda_products, isratio_products, isratios, eligibilities):
-        return self.lambd * np.minimum(1.0, eligibilities * isratios)
+class Moretrace3(TrajectoryAwareEligibilityTrace):
+    def _compute_betas(self, lambda_products, isratio_products, isratio, betas):
+        return np.minimum(lambda_products, np.minimum(isratio_products, betas * isratio))
+
+
+class RecursiveRetrace(TrajectoryAwareEligibilityTrace):
+    def _compute_betas(self, lambda_products, isratio_products, isratio, betas):
+        return self.lambd * np.minimum(1.0, betas * isratio)
 
 
 class TruncatedIS(TrajectoryAwareEligibilityTrace):
-    def _compute_eligibility(self, lambda_products, isratio_products, isratios, eligibilities):
+    def _compute_betas(self, lambda_products, isratio_products, isratio, betas):
         return lambda_products * np.minimum(1.0, isratio_products)
