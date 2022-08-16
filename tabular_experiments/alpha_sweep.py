@@ -15,9 +15,9 @@ def preformat_plots():
     plt.rcParams.update({'font.size': 22})
 
     # Set color cycle to
-    # Belize Hole, Pomegranate, Nephritis, Midnight Blue
+    # Midnight Blue, Belize Hole, Nephritis, Pomegranate
     # (see https://flatuicolors.com/palette/defo for all colors)
-    color_cycler = cycler('color', ['#2980b9', '#c0392b', '#27ae60', '#2c3e50'])
+    color_cycler = cycler('color', ['#2c3e50', '#2980b9', '#27ae60', '#c0392b'])
     plt.rcParams.update({'axes.prop_cycle': color_cycler})
 
 
@@ -33,7 +33,7 @@ def postformat_plots():
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
 
-    plt.tight_layout(pad=0)
+    plt.tight_layout(pad=0.02)
 
 
 if __name__ == '__main__':

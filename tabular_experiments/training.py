@@ -160,11 +160,10 @@ def run_sweep_V(env_id, behavior_policy, target_policy, discount, return_estimat
     return results
 
 
-def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds):
-    assert behavior_policy.sum() == 1.0
-    assert target_policy.sum() == 1.0
+def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds, n_episodes):
+    assert np.isclose(behavior_policy.sum(), 1.0)
+    assert np.isclose(target_policy.sum(), 1.0)
 
-    n_episodes = 50
     n_seeds = len(list(seeds))
 
     all_combos = tuple(product(return_estimators, lambda_values, learning_rates))
