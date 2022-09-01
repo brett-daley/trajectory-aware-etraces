@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from alpha_sweep import preformat_plots, postformat_plots
+import grid_walk
 from training import run_sweep_V, run_sweep_Q
 
 
