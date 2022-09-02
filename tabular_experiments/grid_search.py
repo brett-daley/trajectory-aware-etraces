@@ -58,6 +58,7 @@ def get_best_alphas(results, estimator):
 
 
 def search_hyperparameters(env_id, behavior_policy, target_policy, return_estimators, n_episodes):
+    print(f"--- {env_id}:")
     results = run_sweep_Q(env_id, behavior_policy, target_policy, DISCOUNT, return_estimators, LAMBDA_VALUES, ALPHA_VALUES, SEEDS, n_episodes)
 
     # Plot RMS vs Learning Rate

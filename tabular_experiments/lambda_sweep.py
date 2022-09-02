@@ -4,64 +4,77 @@ import gym_classics
 import matplotlib.pyplot as plt
 import numpy as np
 
-from alpha_sweep import preformat_plots, postformat_plots
 import grid_walk
+from grid_search import DISCOUNT, LAMBDA_VALUES, performance
+from learning_curves import generate_seeds, preformat_plots, postformat_plots
 from training import run_sweep_V, run_sweep_Q
 
 
-if __name__ == '__main__':
-    discount = 1.0
-    return_estimators = ['Retrace', 'Moretrace']
-    lambda_values = np.linspace(0, 1, 51)
-    learning_rates = [0.2, 0.4, 0.6, 0.8, 1.0]
-    seeds = range(50)
-
-    # behavior_policy = np.array([0.5, 0.5])
-    # target_policy = np.array([0.5, 0.5])
-    # results = run_sweep_V('19Walk-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
-
-    behavior_policy = np.array([0.5, 0.5])
-    target_policy = np.array([0.1, 0.9])
-    results = run_sweep_Q('19Walk-v0', behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds)
-
+def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_episodes, title):
+    plt.figure()
     preformat_plots()
 
+    seeds = generate_seeds(meta_seed=0, n=100)
+
     # Plot RMS vs Lambda
-    for lr in learning_rates:
-        plt.figure()
+    for estimator, best_alphas in algo_specs.items():
+        assert len(best_alphas) == len(LAMBDA_VALUES)
 
-        for estimator in return_estimators:
-            X, Y, ERROR = [], [], []
-            for lambd in lambda_values:
-                key = (estimator, lambd, lr)
-                final_error = results[key][:, -1]
-                mean = np.mean(final_error)
-                # 99% confidence interval
-                confidence = 2.576 * np.std(final_error, ddof=1) / np.sqrt(len(seeds))
+        X, Y, ERROR = [], [], []
+        for lambd, alpha in zip(LAMBDA_VALUES, best_alphas):
+            results = run_sweep_Q(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], seeds, n_episodes)
+            key = (estimator, lambd, alpha)
+            rms_errors = results[key]
+            episode_metrics = performance(rms_errors)
+            mean = np.mean(episode_metrics)
+            # 99% confidence interval
+            confidence = 2.576 * np.std(episode_metrics, ddof=1) / np.sqrt(len(seeds))
 
-                # Hide error bars if we exceed the y-axis
-                if mean >= 1.0:
-                    confidence = 0.0
+            X.append(lambd)
+            Y.append(mean)
+            ERROR.append(confidence)
 
-                X.append(lambd)
-                Y.append(mean)
-                ERROR.append(confidence)
-
-            X, Y, ERROR = map(np.array, [X, Y, ERROR])
-            plt.plot(X, Y, label=estimator)
-            plt.fill_between(X, (Y - ERROR), (Y + ERROR), alpha=0.25, linewidth=0)
+        X, Y, ERROR = map(np.array, [X, Y, ERROR])
+        plt.plot(X, Y, label=estimator)
+        plt.fill_between(X, (Y - ERROR), (Y + ERROR), alpha=0.25, linewidth=0)
 
         plt.xlim([0, 1])
         plt.xticks(np.linspace(0.0, 1.0, 10 + 1))
         plt.ylim([0.0, 1.0])
 
-        str_lr = str(int(lr)) if int(lr) == lr else str(lr)
-        plt.title(r"Random Walk ($\alpha=" + str_lr + r"$)")
-        plt.xlabel(r"$\lambda$")
-        plt.ylabel("RMS Error")
+    plt.title(title)
+    plt.xlabel(r"$\lambda$")
+    plt.ylabel("RMS Error (AUC)")
 
-        postformat_plots()
+    postformat_plots()
 
-        plot_path = os.path.join('plots', 'alpha-' + str(lr))
-        plt.savefig(plot_path  + '.png')
-        plt.savefig(plot_path + '.pdf', format='pdf')
+    plot_path = os.path.join('plots', 'lambda-' + env_id)
+    plt.savefig(plot_path + '.png')
+    plt.savefig(plot_path + '.pdf', format='pdf')
+
+
+if __name__ == '__main__':
+    # Random Walk
+    # Actions: left, right
+    behavior_policy = np.array([0.5, 0.5])
+    target_policy = np.array([0.1, 0.9])
+    algo_specs = {
+        # estimator -> [best alphas]
+        'Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        'Truncated IS': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        'Recursive Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
+    }
+    plot_lambda_sweep("19Walk-v0", behavior_policy, target_policy, algo_specs, n_episodes=25, title="Linear Walk")
+
+    # Gridwalk
+    # Actions: up, right, down, left
+    behavior_policy = np.array([0.25, 0.25, 0.25, 0.25])
+    target_policy = np.array([0.1, 0.7, 0.1, 0.1])
+    algo_specs = {
+        # estimator -> (lambda, alpha)
+        'Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        'Truncated IS': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        'Recursive Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        'Moretrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
+    }
+    plot_lambda_sweep("GridWalk-v0", behavior_policy, target_policy, algo_specs, n_episodes=200, title="Grid Walk")
