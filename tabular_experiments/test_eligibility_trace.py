@@ -3,6 +3,7 @@ import sys
 sys.path.append('..')
 
 import gym_classics
+import grid_walk
 import numpy as np
 
 # Change this import statement to test a different method:
@@ -12,7 +13,7 @@ from training import sample_episodes
 
 def test(behavior_policy, target_policy, discount, lambd):
     # Sample episodes from the random walk
-    env, episodes = sample_episodes('5Walk-v0', behavior_policy, n_episodes=1, seed=3)
+    env, episodes = sample_episodes('GridWalk-v0', behavior_policy, n_episodes=1, seed=3)
     transitions = tuple(itertools.chain(*episodes))
 
     # Convert transitions to numpy arrays
@@ -35,13 +36,13 @@ if __name__ == '__main__':
     np.set_printoptions(linewidth=np.inf)
 
     # Test case 1: Check that discounting/eligibility decay are working.
-    behavior_policy = np.array([1/2, 1/2])
-    target_policy = np.array([1/2, 1/2])
+    behavior_policy = 0.25 * np.array([1, 1, 1, 1])
+    target_policy = 0.25 * np.array([1, 1, 1, 1])
     test(behavior_policy, target_policy, discount=0.9, lambd=0.8)
 
     print('---')
 
     # Test case 2: Check that importance sampling is working.
-    behavior_policy = np.array([0.5, 0.5])
-    target_policy = np.array([0.1, 0.9])
+    behavior_policy = 0.25 * np.array([1, 1, 1, 1])
+    target_policy = 0.25 * np.array([1, 1, 1, 1])
     test(behavior_policy, target_policy, discount=1.0, lambd=1.0)

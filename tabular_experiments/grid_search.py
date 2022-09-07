@@ -6,7 +6,7 @@ from training import run_sweep_Q
 
 
 DISCOUNT = 1.0
-LAMBDA_VALUES = np.linspace(0, 1, 11)[1:-1]  # Don't test lambda={0,1}
+LAMBDA_VALUES = np.linspace(0, 1, 21)
 ALPHA_VALUES = np.linspace(0, 1, 21)[1:-1]  # Don't test alpha={0,1}
 SEEDS = range(10)
 

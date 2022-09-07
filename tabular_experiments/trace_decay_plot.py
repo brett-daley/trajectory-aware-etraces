@@ -15,7 +15,7 @@ if __name__ == '__main__':
     plt.figure()
 
     n = 100
-    for estimator in ['Retrace', 'Moretrace', 'Recursive Retrace', 'Truncated IS']:
+    for estimator in ['Retrace', 'Truncated IS', 'Recursive Retrace', 'Moretrace']:
         trajectories = []
         for seed in range(n):
             eligibilities = np.loadtxt(f"data/{estimator.replace(' ', '')}_{seed}.txt")
@@ -28,7 +28,7 @@ if __name__ == '__main__':
         plt.plot(X, Y, label=estimator)
         plt.fill_between(X, Y - error, Y + error, alpha=0.25, linewidth=0)
 
-    plt.title("Random Walk")
+    plt.title("Grid Walk")
     plt.xlabel("Timesteps")
     plt.ylabel("Eligibility of Initial State")
 

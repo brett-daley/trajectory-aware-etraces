@@ -86,9 +86,9 @@ if __name__ == '__main__':
     target_policy = np.array([0.1, 0.9])
     algo_specs = {
         # estimator -> (lambda, alpha)
-        'Retrace': (0.9, 0.9),
-        'Truncated IS': (0.9, 0.9),
-        'Recursive Retrace': (0.9, 0.9)
+        'Retrace': (0.95, 0.975),
+        'Truncated IS': (0.95, 0.75),
+        'Recursive Retrace': (0.95, 0.95)
     }
     plot_learning_curves("19Walk-v0", behavior_policy, target_policy, algo_specs, n_episodes=25, title="Linear Walk")
 
@@ -98,9 +98,9 @@ if __name__ == '__main__':
     target_policy = np.array([0.1, 0.7, 0.1, 0.1])
     algo_specs = {
         # estimator -> (lambda, alpha)
-        'Retrace': (0.9, 0.9),
-        'Truncated IS': (0.9, 0.9),
-        'Recursive Retrace': (0.9, 0.9),
-        'Moretrace': (0.9, 0.9)
+        'Retrace': (0.95, 0.975),
+        'Truncated IS': (0.85, 0.975),
+        'Recursive Retrace': (0.85, 0.975),
+        'Moretrace': (0.7, 0.975)
     }
     plot_learning_curves("GridWalk-v0", behavior_policy, target_policy, algo_specs, n_episodes=200, title="Grid Walk")
