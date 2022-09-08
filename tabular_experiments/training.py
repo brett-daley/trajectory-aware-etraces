@@ -7,7 +7,7 @@ sys.path.append('..')
 import gym
 import numpy as np
 
-from dqn.experience_replay import eligibility_traces
+from eligibility_traces import online_eligibility_traces as eligibility_traces
 
 
 def policy_evaluation_Q(env, discount, policy, precision=1e-3):
@@ -80,19 +80,20 @@ def train_Q(Q, episode, behavior_policy, target_policy, etrace, learning_rate):
     discount = etrace.discount
     assert 0.0 <= discount <= 1.0
     assert 0.0 <= learning_rate <= 1.0
+    # TODO: Ideally, we'd just pass these args into the constructor
+    etrace.set(Q, learning_rate)
 
-    # Accumulate updates using the eligibility trace
+    # Calculate the 1-step TD errors
     states, actions, rewards, next_states, dones = map(np.array, zip(*episode))
     dones = dones.astype(np.float32)
     td_errors = rewards - Q[states, actions]
     next_V = (target_policy[None] * Q[next_states]).sum(axis=1)
     td_errors += discount * (1.0 - dones) * next_V
-    updates = etrace(td_errors, behavior_policy[actions], target_policy[actions], dones)
 
     # Now apply the updates to each visited state-action pair
-    returns = Q[states, actions] + updates
+    etrace.reset_traces()
     for t, (s, a, _, _, _) in enumerate(episode):
-        Q[s, a] += learning_rate * (returns[t] - Q[s, a])
+        etrace.step(s, a, td_errors[t], behavior_policy[a], target_policy[a])
     # print(Q.mean(axis=1))
 
 
