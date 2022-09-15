@@ -4,10 +4,11 @@ import gym_classics
 import matplotlib.pyplot as plt
 import numpy as np
 
-import grid_walk
-from grid_search import DISCOUNT, LAMBDA_VALUES, performance
-from learning_curves import generate_seeds, preformat_plots, postformat_plots
-from training import run_sweep_V, run_sweep_Q
+from moretrace import grid_walk
+from moretrace.experiments.grid_search import DISCOUNT, LAMBDA_VALUES, performance
+from moretrace.experiments.plot_formatting import preformat_plots, postformat_plots
+from moretrace.experiments.seeding import generate_seeds
+from moretrace.experiments.training import run_sweep_Q
 
 
 def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_episodes, title):
@@ -60,9 +61,9 @@ if __name__ == '__main__':
     target_policy = np.array([0.1, 0.9])
     algo_specs = {
         # estimator -> [best alphas]
-        'Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        'Truncated IS': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        'Recursive Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
+        'Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        'Truncated IS': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        'Recursive Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
     }
     plot_lambda_sweep("19Walk-v0", behavior_policy, target_policy, algo_specs, n_episodes=25, title="Linear Walk")
 
@@ -72,9 +73,9 @@ if __name__ == '__main__':
     target_policy = np.array([0.1, 0.7, 0.1, 0.1])
     algo_specs = {
         # estimator -> (lambda, alpha)
-        'Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        'Truncated IS': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        'Recursive Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        'Moretrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
+        'Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        'Truncated IS': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        'Recursive Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+        'Moretrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
     }
     plot_lambda_sweep("GridWalk-v0", behavior_policy, target_policy, algo_specs, n_episodes=200, title="Grid Walk")

@@ -6,8 +6,6 @@ import gym
 import gym_classics
 import numpy as np
 
-from dqn.experience_replay import eligibility_traces
-
 
 def sample_episode(env_id, behavior_policy, seed):
     env = gym.make(env_id)

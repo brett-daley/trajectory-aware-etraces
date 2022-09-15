@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 import matplotlib.pyplot as plt
 import numpy as np
 
-from alpha_sweep import preformat_plots, postformat_plots
+from moretrace.experiments.plot_formatting import preformat_plots, postformat_plots
 
 
 if __name__ == '__main__':

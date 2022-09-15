@@ -1,14 +1,12 @@
 import itertools
-import sys
-sys.path.append('..')
 
 import gym_classics
-import grid_walk
 import numpy as np
 
+from moretrace import grid_walk
 # Change this import statement to test a different method:
-from dqn.experience_replay.eligibility_traces import Retrace as etrace_cls
-from training import sample_episodes
+from moretrace.eligibility_traces.offline import Retrace as etrace_cls
+from moretrace.experiments.training import sample_episodes
 
 
 def test(behavior_policy, target_policy, discount, lambd):

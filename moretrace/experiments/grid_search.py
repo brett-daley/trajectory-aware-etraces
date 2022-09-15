@@ -1,12 +1,12 @@
 import gym_classics
 import numpy as np
 
-import grid_walk
-from training import run_sweep_Q
+from moretrace import grid_walk
+from moretrace.experiments.training import run_sweep_Q
 
 
 DISCOUNT = 1.0
-LAMBDA_VALUES = np.linspace(0, 1, 21)
+LAMBDA_VALUES = np.linspace(0, 1, 11)
 ALPHA_VALUES = np.linspace(0, 1, 21)[1:-1]  # Don't test alpha={0,1}
 SEEDS = range(10)
 
