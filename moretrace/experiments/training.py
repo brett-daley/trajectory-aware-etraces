@@ -5,10 +5,12 @@ from itertools import product
 import gym
 import numpy as np
 
+from moretrace import grid_walk
 import moretrace.eligibility_traces.online as eligibility_traces
+from moretrace.experiments.sampling import EnvSampler
 
 
-def policy_evaluation_Q(env, discount, policy, precision=1e-3):
+def policy_evaluation(env, discount, policy, precision=1e-3):
     assert 0.0 <= discount <= 1.0
     assert precision > 0.0
     Q = np.zeros([env.observation_space.n, env.action_space.n], dtype=np.float64)
@@ -31,27 +33,7 @@ def backup(env, discount, policy, Q, state, action):
     return np.sum(probs * (rewards + discount * next_V))
 
 
-def sample_episodes(env_id, behavior_policy, n_episodes, seed):
-    env = gym.make(env_id)
-    env.seed(seed)
-    env.action_space.seed(seed)
-    random_state = np.random.RandomState(seed)
-
-    episodes = []
-    for _ in range(n_episodes):
-        state = env.reset()
-        done = False
-        transitions = []
-        while not done:
-            action = random_state.choice(env.action_space.n, p=behavior_policy)
-            next_state, reward, done, _ = env.step(action)
-            transitions.append( (state, action, reward, next_state, done) )
-            state = next_state
-        episodes.append(tuple(transitions))
-    return env, tuple(episodes)
-
-
-def train_Q(Q, episode, behavior_policy, target_policy, etrace, learning_rate):
+def train(Q, episode, behavior_policy, target_policy, etrace, learning_rate):
     discount = etrace.discount
     assert 0.0 <= discount <= 1.0
     assert 0.0 <= learning_rate <= 1.0
@@ -68,7 +50,7 @@ def train_Q(Q, episode, behavior_policy, target_policy, etrace, learning_rate):
     # Now apply the updates to each visited state-action pair
     etrace.reset_traces()
     for t, (s, a, _, _, _) in enumerate(episode):
-        etrace.step(s, a, td_errors[t], behavior_policy[a], target_policy[a])
+        etrace.step(s, a, td_errors[t], behavior_policy(s)[a], target_policy[a])
     # print(Q.mean(axis=1))
 
 
@@ -76,21 +58,62 @@ def rms(x, y):
     return np.sqrt(np.mean(np.square(x - y)))
 
 
-def run_trial_Q(env_id, behavior_policy, target_policy, etrace, learning_rate, n_episodes, seed):
-    env, experience = sample_episodes(env_id, behavior_policy, n_episodes, seed)
+def epsilon_greedy_policy(Q, epsilon):
+    assert 0.0 <= epsilon <= 1.0
+    n = Q.shape[1]
+    def policy(s):
+        # One-hot greedy probabilities
+        greedy = np.zeros(n)
+        greedy[Q[s] == Q[s].max()] = 1
+        greedy /= greedy.sum()
+        # Uniform-random probabilities
+        random = np.ones(n)
+        random /= random.sum()
+        # Return the epsilon-mixture of the distributions
+        return epsilon * random + (1-epsilon) * greedy
+    return policy
 
+
+def run_prediction_trial(env_id, behavior_eps, target_policy, etrace, learning_rate, n_episodes, seed):
+    assert behavior_eps == 1.0  # Random behavior policy only
+    sampler = EnvSampler(env_id, seed)
+
+    env = sampler.env
     Q = np.zeros([env.observation_space.n, env.action_space.n], dtype=np.float64)
-    Q_pi = policy_evaluation_Q(env, etrace.discount, target_policy, precision=1e-9)
+    Q_pi = policy_evaluation(env, etrace.discount, target_policy, precision=1e-9)
 
     rms_errors = [rms(Q, Q_pi)]
-    for episode in experience:
-        train_Q(Q, episode, behavior_policy, target_policy, etrace, learning_rate)
+    for _ in range(n_episodes):
+        behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
+        episode = sampler.sample_one_episode(behavior_policy)
+        train(Q, episode, behavior_policy, target_policy, etrace, learning_rate)
         rms_errors.append(rms(Q, Q_pi))
     return rms_errors
 
 
-def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds, n_episodes):
-    assert np.isclose(behavior_policy.sum(), 1.0)
+def run_control_trial(env_id, behavior_eps, target_policy, etrace, learning_rate, n_episodes, seed):
+    sampler = EnvSampler(env_id, seed)
+
+    env = sampler.env
+    Q = np.zeros([env.observation_space.n, env.action_space.n], dtype=np.float64)
+
+    lengths = []
+    while len(lengths) <= n_episodes:
+        behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
+        episode = sampler.sample_one_episode(behavior_policy)
+        lengths.append(len(episode))
+        train(Q, episode, behavior_policy, target_policy, etrace, learning_rate)
+    return lengths
+
+
+def run_prediction_sweep(*args, **kwargs):
+    return _run_sweep(*args, **kwargs, trial_fn=run_prediction_trial)
+
+def run_control_sweep(*args, **kwargs):
+    return _run_sweep(*args, **kwargs, trial_fn=run_control_trial)
+
+def _run_sweep(env_id, behavior_eps, target_policy, discount, return_estimators, lambda_values, learning_rates, seeds, n_episodes, trial_fn):
+    assert 0.0 <= behavior_eps <= 1.0
     assert np.isclose(target_policy.sum(), 1.0)
 
     n_seeds = len(list(seeds))
@@ -104,19 +127,19 @@ def run_sweep_Q(env_id, behavior_policy, target_policy, discount, return_estimat
             for (estimator, lambd, lr) in all_combos:
                 key = (estimator, lambd, lr, s)
                 etrace = getattr(eligibility_traces, estimator.replace(' ', ''))(discount, lambd)
-                future = executor.submit(run_trial_Q, env_id,
-                    behavior_policy, target_policy, etrace, lr, n_episodes, seed=s)
+                future = executor.submit(trial_fn, env_id,
+                    behavior_eps, target_policy, etrace, lr, n_episodes, seed=s)
                 key_to_future_dict[key] = future
 
     for key in key_to_future_dict.keys():
-        rms_errors = key_to_future_dict[key].result()
+        yields = key_to_future_dict[key].result()
         (estimator, lambd, lr, _) = key
-        results[(estimator, lambd, lr)].append(rms_errors)
+        results[(estimator, lambd, lr)].append(yields)
 
     for (estimator, lambd, lr) in all_combos:
         key = (estimator, lambd, lr)
-        rms_errors = np.array(results[key])
-        assert rms_errors.shape == (n_seeds, n_episodes + 1)
-        results[key] = rms_errors
+        yields = np.array(results[key])
+        assert yields.shape == (n_seeds, n_episodes + 1)
+        results[key] = yields
 
     return results

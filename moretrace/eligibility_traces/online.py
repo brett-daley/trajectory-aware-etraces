@@ -3,6 +3,10 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 
+# Use this number as "infinity"
+MAX_FLOAT32 = np.finfo(np.float32).max
+
+
 class OnlineEligibilityTrace(ABC):
     def __init__(self, discount, lambd):
         assert 0.0 <= discount <= 1.0
@@ -26,7 +30,7 @@ class OnlineEligibilityTrace(ABC):
         for k, (s, a) in enumerate(self.sa_pairs):
             self.discount_products[k] *= self.discount
             self.lambda_products[k] *= self.lambd
-            self.isratio_products[k] *= isratio
+            self.isratio_products[k] = min(MAX_FLOAT32, self.isratio_products[k] * isratio)
             self.betas[k] = self._compute_beta(k, isratio)
 
         # Increment eligibility for the current state-action pair

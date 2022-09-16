@@ -8,10 +8,10 @@ from moretrace import grid_walk
 from moretrace.experiments.grid_search import DISCOUNT, LAMBDA_VALUES, performance
 from moretrace.experiments.plot_formatting import preformat_plots, postformat_plots
 from moretrace.experiments.seeding import generate_seeds
-from moretrace.experiments.training import run_prediction_sweep
+from moretrace.experiments.training import run_control_sweep
 
 
-def plot_lambda_sweep(env_id, behavior_eps, target_policy, algo_specs, n_episodes, title):
+def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_episodes, title):
     plt.figure()
     preformat_plots()
 
@@ -23,7 +23,7 @@ def plot_lambda_sweep(env_id, behavior_eps, target_policy, algo_specs, n_episode
 
         X, Y, ERROR = [], [], []
         for lambd, alpha in zip(LAMBDA_VALUES, best_alphas):
-            results = run_prediction_sweep(env_id, behavior_eps, target_policy, DISCOUNT, [estimator], [lambd], [alpha], seeds, n_episodes)
+            results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], seeds, n_episodes)
             key = (estimator, lambd, alpha)
             rms_errors = results[key]
             episode_metrics = performance(rms_errors)
@@ -45,7 +45,7 @@ def plot_lambda_sweep(env_id, behavior_eps, target_policy, algo_specs, n_episode
 
     plt.title(title)
     plt.xlabel(r"$\lambda$")
-    plt.ylabel("RMS Error (AUC)")
+    plt.ylabel("Episode Length (AUC)")
 
     postformat_plots()
 
@@ -55,21 +55,9 @@ def plot_lambda_sweep(env_id, behavior_eps, target_policy, algo_specs, n_episode
 
 
 if __name__ == '__main__':
-    # Random Walk
-    # Actions: left, right
-    behavior_eps = 1.0
-    target_policy = np.array([0.1, 0.9])
-    algo_specs = {
-        # estimator -> [best alphas]
-        'Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        'Truncated IS': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        'Recursive Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
-    }
-    plot_lambda_sweep("19Walk-v0", behavior_eps, target_policy, algo_specs, n_episodes=25, title="Linear Walk")
-
     # Gridwalk
     # Actions: up, right, down, left
-    behavior_eps = 1.0
+    behavior_eps = 0.2
     target_policy = np.array([0.1, 0.7, 0.1, 0.1])
     algo_specs = {
         # estimator -> (lambda, alpha)
