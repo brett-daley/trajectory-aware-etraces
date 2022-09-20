@@ -1,4 +1,5 @@
 __pycache__
 *.png
+moretrace/experiments/control/plots
 moretrace/experiments/prediction/data
 moretrace/experiments/prediction/plots

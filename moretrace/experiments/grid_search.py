@@ -1,7 +1,7 @@
 import numpy as np
 
 
-DISCOUNT = 0.95
+DISCOUNT = 0.9
 LAMBDA_VALUES = np.linspace(0, 1, 11)
 ALPHA_VALUES = np.linspace(0, 1, 21)[1:-1]  # Don't test alpha={0,1}
 SEEDS = range(10)

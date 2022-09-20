@@ -7,7 +7,7 @@ import numpy as np
 from moretrace.experiments.grid_search import DISCOUNT
 from moretrace.experiments.plot_formatting import preformat_plots, postformat_plots
 from moretrace.experiments.seeding import generate_seeds
-from moretrace.experiments.training import run_sweep_Q
+from moretrace.experiments.training import run_prediction_sweep
 
 
 def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_episodes, title):
@@ -19,7 +19,7 @@ def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_e
     # Plot RMS vs Learning Rate
     for estimator, params in algo_specs.items():
         lambd, alpha = params
-        results = run_sweep_Q(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], seeds, n_episodes)
+        results = run_prediction_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], seeds, n_episodes)
 
         # Get the errors corresponding to the best hyperparameters we found
         rms_errors = results[(estimator, *params)]

@@ -32,7 +32,7 @@ def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_e
         plt.fill_between(X, (Y - ERROR), (Y + ERROR), alpha=0.25, linewidth=0)
 
     # Plot a line for the theoretical minimum number of steps
-    plt.plot(X, 9 * np.ones_like(Y), color='black', linestyle='--')
+    plt.plot(X, 20 * np.ones_like(Y), color='black', linestyle='--')
 
     plt.xlim([0, len(Y) - 1])
     plt.ylim([0, 100])
@@ -51,8 +51,8 @@ def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_e
 if __name__ == '__main__':
     # Gridwalk
     # Actions: up, right, down, left
-    behavior_eps = 0.2
-    target_policy = np.array([0.1, 0.7, 0.1, 0.1])
+    behavior_eps = 0.1
+    target_eps = 0.05
     algo_specs = {
         # estimator -> (lambda, alpha)
         'Retrace': (0.5, 0.1),
@@ -60,4 +60,4 @@ if __name__ == '__main__':
         # 'Recursive Retrace': (0.85, 0.975),
         'Moretrace': (0.5, 0.1)
     }
-    plot_learning_curves("GridWalk-v0", behavior_eps, target_policy, algo_specs, n_episodes=40, title="Grid Walk")
+    plot_learning_curves("GridWalk-v0", behavior_eps, target_eps, algo_specs, n_episodes=100, title="Grid Walk")

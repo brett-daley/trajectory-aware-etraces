@@ -1,10 +1,10 @@
-from gym_classics.envs.abstract.gridworld import Gridworld
+from gym_classics.envs.abstract.noisy_gridworld import NoisyGridworld as Gridworld
 
 
 class GridWalk(Gridworld):
     def __init__(self):
-        self._goal = (9, 1)
-        super().__init__(dims=(10, 3), starts={(0, 1)})
+        self._goal = (20, 1)
+        super().__init__(dims=(21, 3), starts={(0, 1)})
 
     def _move(self, state, action):
         x, y = state
