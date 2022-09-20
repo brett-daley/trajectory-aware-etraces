@@ -57,8 +57,8 @@ def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_epis
 if __name__ == '__main__':
     # Gridwalk
     # Actions: up, right, down, left
-    behavior_eps = 0.2
-    target_policy = np.array([0.1, 0.7, 0.1, 0.1])
+    behavior_eps = 0.15
+    target_eps = 0.05
     algo_specs = {
         # estimator -> (lambda, alpha)
         'Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
@@ -66,4 +66,4 @@ if __name__ == '__main__':
         'Recursive Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
         'Moretrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
     }
-    plot_lambda_sweep("GridWalk-v0", behavior_eps, target_policy, algo_specs, n_episodes=200, title="Grid Walk")
+    plot_lambda_sweep("GridWalk-v0", behavior_eps, target_eps, algo_specs, n_timesteps=5_000, title="Grid Walk")

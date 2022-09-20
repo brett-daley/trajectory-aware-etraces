@@ -86,7 +86,7 @@ def run_prediction_trial(env_id, behavior_probs, target_probs, etrace, learning_
     return rms_errors
 
 
-def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n_episodes, seed):
+def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n_timesteps, seed):
     sampler = EnvSampler(env_id, seed)
     env = sampler.env
     Q = np.zeros([env.observation_space.n, env.action_space.n], dtype=np.float64)
@@ -98,30 +98,34 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
         assert 0.0 <= discount <= 1.0
         assert 0.0 <= learning_rate <= 1.0
 
-        # Apply the updates to each visited state-action pair online
         etrace.reset_traces()
         done = False
-        length = 0
-        while not done:
-            behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
-            target_policy = epsilon_greedy_policy(Q, target_eps)
+        behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
+        target_policy = epsilon_greedy_policy(Q, target_eps)
 
+        episodes = 0
+        all_values = []
+        # Apply the updates to each visited state-action pair online
+        for t in range(n_timesteps + 1):
+            all_values.append(episodes)
             s, a, reward, next_state, done = sampler.step(behavior_policy)
 
             td_error = reward - Q[s, a]
             if not done:
                 next_V = (target_policy(next_state)[None] * Q[next_state]).sum(axis=1)
                 td_error += discount * next_V
-
             etrace.step(s, a, td_error, behavior_policy(s)[a], target_policy(s)[a])
-            length += 1
 
-        return length
+            if done:
+                episodes += 1
+                # Update the policies only at the end of each episode
+                behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
+                target_policy = epsilon_greedy_policy(Q, target_eps)
 
-    lengths = []
-    while len(lengths) <= n_episodes:
-        lengths.append(train())
-    return lengths
+        assert len(all_values) == n_timesteps + 1
+        return all_values
+
+    return train()
 
 
 def run_prediction_sweep(*args, **kwargs):
@@ -130,7 +134,7 @@ def run_prediction_sweep(*args, **kwargs):
 def run_control_sweep(*args, **kwargs):
     return _run_sweep(*args, **kwargs, trial_fn=run_control_trial)
 
-def _run_sweep(env_id, behavior, target, discount, return_estimators, lambda_values, learning_rates, seeds, n_episodes, trial_fn):
+def _run_sweep(env_id, behavior, target, discount, return_estimators, lambda_values, learning_rates, seeds, n_timesteps, trial_fn):
     n_seeds = len(list(seeds))
 
     all_combos = tuple(product(return_estimators, lambda_values, learning_rates))
@@ -143,7 +147,7 @@ def _run_sweep(env_id, behavior, target, discount, return_estimators, lambda_val
                 key = (estimator, lambd, lr, s)
                 etrace = getattr(eligibility_traces, estimator.replace(' ', ''))(discount, lambd)
                 future = executor.submit(trial_fn, env_id,
-                    behavior, target, etrace, lr, n_episodes, seed=s)
+                    behavior, target, etrace, lr, n_timesteps, seed=s)
                 key_to_future_dict[key] = future
 
     for key in key_to_future_dict.keys():
@@ -154,7 +158,7 @@ def _run_sweep(env_id, behavior, target, discount, return_estimators, lambda_val
     for (estimator, lambd, lr) in all_combos:
         key = (estimator, lambd, lr)
         yields = np.array(results[key])
-        assert yields.shape == (n_seeds, n_episodes + 1)
+        # assert yields.shape == (n_seeds, n_episodes + 1)
         results[key] = yields
 
     return results

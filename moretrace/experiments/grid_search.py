@@ -1,7 +1,7 @@
 import numpy as np
 
 
-DISCOUNT = 0.9
+DISCOUNT = 0.95
 LAMBDA_VALUES = np.linspace(0, 1, 11)
 ALPHA_VALUES = np.linspace(0, 1, 21)[1:-1]  # Don't test alpha={0,1}
 SEEDS = range(10)
@@ -22,7 +22,8 @@ def get_best_combo(results, estimator):
             key = (estimator, lambd, lr)
             yields = results[key]
 
-            perf = np.mean(performance(yields))
+            # TODO: We have this temporarily inverted to maximize AUC
+            perf = -1 * np.mean(performance(yields))
 
             if perf < best:
                 best = perf

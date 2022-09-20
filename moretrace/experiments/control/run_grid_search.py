@@ -1,13 +1,11 @@
-import numpy as np
-
 from moretrace.experiments.grid_search import DISCOUNT, LAMBDA_VALUES, ALPHA_VALUES, SEEDS,\
     get_best_combo, get_best_alphas
 from moretrace.experiments.training import run_control_sweep
 
 
-def search_hyperparameters(env_id, behavior_eps, target_policy, return_estimators, n_episodes):
+def search_hyperparameters(env_id, behavior_eps, target_policy, return_estimators, n_timesteps):
     print(f"--- {env_id}:")
-    results = run_control_sweep(env_id, behavior_eps, target_policy, DISCOUNT, return_estimators, LAMBDA_VALUES, ALPHA_VALUES, SEEDS, n_episodes)
+    results = run_control_sweep(env_id, behavior_eps, target_policy, DISCOUNT, return_estimators, LAMBDA_VALUES, ALPHA_VALUES, SEEDS, n_timesteps)
 
     # Plot RMS vs Learning Rate
     for estimator in return_estimators:
@@ -23,7 +21,7 @@ def search_hyperparameters(env_id, behavior_eps, target_policy, return_estimator
 if __name__ == '__main__':
     # Gridwalk
     # Actions: up, right, down, left
-    behavior_eps = 1.0
-    target_policy = np.array([0.1, 0.7, 0.1, 0.1])
+    behavior_eps = 0.15
+    target_policy = 0.05
     estimators = ['Retrace', 'Truncated IS', 'Recursive Retrace', 'Moretrace']
-    search_hyperparameters("GridWalk-v0", behavior_eps, target_policy, estimators, n_episodes=200)
+    search_hyperparameters("GridWalk-v0", behavior_eps, target_policy, estimators, n_timesteps=5_000)
