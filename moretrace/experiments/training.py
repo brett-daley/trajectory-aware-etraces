@@ -89,7 +89,8 @@ def run_prediction_trial(env_id, behavior_probs, target_probs, etrace, learning_
 def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n_timesteps, seed):
     sampler = EnvSampler(env_id, seed)
     env = sampler.env
-    Q = np.zeros([env.observation_space.n, env.action_space.n], dtype=np.float64)
+    # NOTE: It's really important to randomly initialize the Q-function
+    Q = 0.1 * sampler.np_random.randn(env.observation_space.n, env.action_space.n)
     # TODO: Ideally, we'd just pass these args into the constructor
     etrace.set(Q, learning_rate)
 

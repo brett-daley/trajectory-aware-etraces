@@ -13,7 +13,7 @@ def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_t
     plt.figure()
     preformat_plots()
 
-    seeds = generate_seeds(meta_seed=0, n=100)
+    seeds = generate_seeds(meta_seed=0, n=48)
 
     # Plot RMS vs Learning Rate
     for estimator, params in algo_specs.items():
@@ -48,13 +48,14 @@ def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_t
 if __name__ == '__main__':
     # Gridwalk
     # Actions: up, right, down, left
-    behavior_eps = 0.15
-    target_eps = 0.05
+    behavior_eps = 0.2
+    target_eps = 0.1
     algo_specs = {
         # estimator -> (lambda, alpha)
-        'Retrace': (0.5, 0.1),
-        # 'Truncated IS': (0.85, 0.975),
-        # 'Recursive Retrace': (0.85, 0.975),
-        'Moretrace': (0.5, 0.1)
+        'Retrace': (0.95, 0.25),
+        # 'Truncated IS': (0.95, 0.25),
+        # 'Recursive Retrace': (0.95, 0.25),
+        # 'Moretrace': (0.95, 0.25),
+        'Supertrace': (0.95, 0.25)
     }
-    plot_learning_curves("GridWalk-v0", behavior_eps, target_eps, algo_specs, n_timesteps=5_000, title="Grid Walk")
+    plot_learning_curves("GridWalk-v0", behavior_eps, target_eps, algo_specs, n_timesteps=10_000, title="Grid Walk")

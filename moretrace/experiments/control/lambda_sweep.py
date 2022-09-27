@@ -11,7 +11,7 @@ from moretrace.experiments.seeding import generate_seeds
 from moretrace.experiments.training import run_control_sweep
 
 
-def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_episodes, title):
+def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_timesteps, title):
     plt.figure()
     preformat_plots()
 
@@ -23,7 +23,7 @@ def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_epis
 
         X, Y, ERROR = [], [], []
         for lambd, alpha in zip(LAMBDA_VALUES, best_alphas):
-            results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], seeds, n_episodes)
+            results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], seeds, n_timesteps)
             key = (estimator, lambd, alpha)
             rms_errors = results[key]
             episode_metrics = performance(rms_errors)
@@ -41,11 +41,11 @@ def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_epis
 
         plt.xlim([0, 1])
         plt.xticks(np.linspace(0.0, 1.0, 10 + 1))
-        plt.ylim([0.0, 1.0])
+        # plt.ylim([0.0, 1.0])
 
     plt.title(title)
     plt.xlabel(r"$\lambda$")
-    plt.ylabel("Episode Length (AUC)")
+    plt.ylabel("AUC")
 
     postformat_plots()
 
@@ -57,13 +57,14 @@ def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_epis
 if __name__ == '__main__':
     # Gridwalk
     # Actions: up, right, down, left
-    behavior_eps = 0.15
-    target_eps = 0.05
+    behavior_eps = 0.2
+    target_eps = 0.1
     algo_specs = {
         # estimator -> (lambda, alpha)
-        'Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        'Truncated IS': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        'Recursive Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
-        'Moretrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
+        'Retrace': [0.1] * 6,
+        # 'Truncated IS': [0.1] * 6,
+        # 'Recursive Retrace': [0.1] * 6,
+        # 'Moretrace': [0.1] * 6,
+        'Supertrace': [0.1] * 6
     }
     plot_lambda_sweep("GridWalk-v0", behavior_eps, target_eps, algo_specs, n_timesteps=5_000, title="Grid Walk")

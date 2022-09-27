@@ -21,7 +21,8 @@ def search_hyperparameters(env_id, behavior_eps, target_policy, return_estimator
 if __name__ == '__main__':
     # Gridwalk
     # Actions: up, right, down, left
-    behavior_eps = 0.15
-    target_policy = 0.05
-    estimators = ['Retrace', 'Truncated IS', 'Recursive Retrace', 'Moretrace']
+    behavior_eps = 0.2
+    target_policy = 0.1
+    # estimators = ['Retrace', 'Truncated IS', 'Recursive Retrace', 'Moretrace']
+    estimators = ['Retrace', 'Moretrace', 'Supertrace']
     search_hyperparameters("GridWalk-v0", behavior_eps, target_policy, estimators, n_timesteps=5_000)

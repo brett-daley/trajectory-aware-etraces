@@ -1,10 +1,10 @@
 import numpy as np
 
 
-DISCOUNT = 0.95
-LAMBDA_VALUES = np.linspace(0, 1, 11)
-ALPHA_VALUES = np.linspace(0, 1, 21)[1:-1]  # Don't test alpha={0,1}
-SEEDS = range(10)
+DISCOUNT = 0.9
+LAMBDA_VALUES = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+ALPHA_VALUES = [0.1, 0.3, 0.5, 0.7, 0.9]
+SEEDS = range(96)
 
 
 # Rank hyperparameters based on this performance metric:
@@ -43,7 +43,8 @@ def get_best_alphas(results, estimator):
             key = (estimator, lambd, lr)
             yields = results[key]
 
-            perf = np.mean(performance(yields))
+            # TODO: We have this temporarily inverted to maximize AUC
+            perf = -1 * np.mean(performance(yields))
 
             if perf < best:
                 best = perf
