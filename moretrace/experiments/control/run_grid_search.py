@@ -1,28 +1,34 @@
-from moretrace.experiments.grid_search import DISCOUNT, LAMBDA_VALUES, ALPHA_VALUES, SEEDS,\
-    get_best_combo, get_best_alphas
+import numpy as np
+
 from moretrace.experiments.training import run_control_sweep
 
 
-def search_hyperparameters(env_id, behavior_eps, target_policy, return_estimators, n_timesteps):
-    print(f"--- {env_id}:")
-    results = run_control_sweep(env_id, behavior_eps, target_policy, DISCOUNT, return_estimators, LAMBDA_VALUES, ALPHA_VALUES, SEEDS, n_timesteps)
+DISCOUNT = 0.9
+LAMBDA_VALUES = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+ALPHA_VALUES = [0.1, 0.3, 0.5, 0.7, 0.9]
+SEEDS = range(480)
 
-    # Plot RMS vs Learning Rate
-    for estimator in return_estimators:
-        print(f"{estimator}:")
-        params = get_best_combo(results, estimator)
-        print("- Best (lambda, alpha):", params)
 
-        alpha_list = get_best_alphas(results, estimator)
-        print("- Sweep [best alphas]:", alpha_list)
-        print()
+def grid_search(env_id, behavior_policy, target_policy, estimators, n_timesteps):
+    results = run_control_sweep(env_id, behavior_eps, target_policy, DISCOUNT, estimators, LAMBDA_VALUES, ALPHA_VALUES, SEEDS, n_timesteps)
+
+    for est in estimators:
+        for lambd in LAMBDA_VALUES:
+            for alpha in ALPHA_VALUES:
+                params = (lambd, alpha)
+                # Get the episode lengths corresponding to the hyperparameters
+                Ys = results[(est, *params)]
+                Y = np.mean(Ys, axis=0)
+                # 99% confidence interval
+                ERROR = 2.576 * np.std(Ys, axis=0, ddof=1) / np.sqrt(len(SEEDS))
+
+                print(est, params, Y[-1], ERROR[-1])
 
 
 if __name__ == '__main__':
     # Gridwalk
     # Actions: up, right, down, left
     behavior_eps = 0.2
-    target_policy = 0.1
-    # estimators = ['Retrace', 'Truncated IS', 'Recursive Retrace', 'Moretrace']
-    estimators = ['Retrace', 'Moretrace', 'Supertrace']
-    search_hyperparameters("GridWalk-v0", behavior_eps, target_policy, estimators, n_timesteps=5_000)
+    target_eps = 0.1
+    estimators = ['Retrace', 'Truncated IS', 'Recursive Retrace', 'Newtrace']
+    grid_search("GridWalk-v0", behavior_eps, target_eps, estimators, n_timesteps=2_500)

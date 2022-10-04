@@ -9,16 +9,17 @@ from moretrace.experiments.seeding import generate_seeds
 from moretrace.experiments.training import run_control_sweep
 
 
-def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_timesteps, title):
+SEEDS = generate_seeds(meta_seed=0, n=48)
+
+
+def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_timesteps, title, plot_name=None):
     plt.figure()
     preformat_plots()
-
-    seeds = generate_seeds(meta_seed=0, n=48)
 
     # Plot RMS vs Learning Rate
     for estimator, params in algo_specs.items():
         lambd, alpha = params
-        results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], seeds, n_timesteps)
+        results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], SEEDS, n_timesteps)
 
         # Get the episode lengths corresponding to the hyperparameters
         Ys = results[(estimator, *params)]
@@ -27,6 +28,8 @@ def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_t
 
         # 99% confidence interval
         ERROR = 2.576 * np.std(Ys, axis=0, ddof=1) / np.sqrt(len(seeds))
+
+        print(estimator, params, Y[-1], ERROR[-1])
 
         plt.plot(X, Y, label=estimator)
         plt.fill_between(X, (Y - ERROR), (Y + ERROR), alpha=0.25, linewidth=0)
@@ -40,8 +43,10 @@ def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_t
 
     postformat_plots()
 
-    plot_path = os.path.join('plots', env_id)
-    plt.savefig(plot_path  + '.png')
+    if plot_name is None:
+        plot_name = env_id
+    plot_path = os.path.join('plots', plot_name)
+    plt.savefig(plot_path + '.png')
     plt.savefig(plot_path + '.pdf', format='pdf')
 
 
@@ -50,12 +55,12 @@ if __name__ == '__main__':
     # Actions: up, right, down, left
     behavior_eps = 0.2
     target_eps = 0.1
-    algo_specs = {
-        # estimator -> (lambda, alpha)
-        'Retrace': (0.95, 0.25),
-        # 'Truncated IS': (0.95, 0.25),
-        # 'Recursive Retrace': (0.95, 0.25),
-        # 'Moretrace': (0.95, 0.25),
-        'Supertrace': (0.95, 0.25)
-    }
-    plot_learning_curves("GridWalk-v0", behavior_eps, target_eps, algo_specs, n_timesteps=10_000, title="Grid Walk")
+    for lambd in [0.2, 0.4, 0.6, 0.8, 1.0]:
+        algo_specs = {
+            # estimator -> (lambda, alpha)
+            'Retrace': (lambd, 0.7),
+            # 'Truncated IS': (lambd, 0.7),
+            # 'Recursive Retrace': (lambd, 0.7),
+            'Newtrace': (lambd, 0.7)
+        }
+        plot_learning_curves("GridWalk-v0", behavior_eps, target_eps, algo_specs, n_timesteps=2_500, title="Grid Walk", plot_name=f"GridWalk-v0_lambd-{lambd}")
