@@ -5,17 +5,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from moretrace import grid_walk
-from moretrace.experiments.grid_search import DISCOUNT, LAMBDA_VALUES, performance
 from moretrace.experiments.plot_formatting import preformat_plots, postformat_plots
 from moretrace.experiments.seeding import generate_seeds
 from moretrace.experiments.training import run_control_sweep
 
 
+DISCOUNT = 0.9
+LAMBDA_VALUES = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+SEEDS = generate_seeds(meta_seed=0, n=1_000)
+
+
 def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_timesteps, title):
     plt.figure()
     preformat_plots()
-
-    seeds = generate_seeds(meta_seed=0, n=100)
 
     # Plot RMS vs Lambda
     for estimator, best_alphas in algo_specs.items():
@@ -23,17 +25,17 @@ def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_time
 
         X, Y, ERROR = [], [], []
         for lambd, alpha in zip(LAMBDA_VALUES, best_alphas):
-            results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], seeds, n_timesteps)
+            results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], SEEDS, n_timesteps)
             key = (estimator, lambd, alpha)
-            rms_errors = results[key]
-            episode_metrics = performance(rms_errors)
-            mean = np.mean(episode_metrics)
-            # 99% confidence interval
-            confidence = 2.576 * np.std(episode_metrics, ddof=1) / np.sqrt(len(seeds))
+            ys = results[key]
+            y = np.mean(ys, axis=0)
+
+            # 95% confidence interval
+            confidence = 1.96 * np.std(ys, axis=0, ddof=1) / np.sqrt(len(SEEDS))
 
             X.append(lambd)
-            Y.append(mean)
-            ERROR.append(confidence)
+            Y.append(y[-1])
+            ERROR.append(confidence[-1])
 
         X, Y, ERROR = map(np.array, [X, Y, ERROR])
         plt.plot(X, Y, label=estimator)
@@ -45,7 +47,7 @@ def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_time
 
     plt.title(title)
     plt.xlabel(r"$\lambda$")
-    plt.ylabel("AUC")
+    plt.ylabel("Episodes")
 
     postformat_plots()
 
@@ -61,10 +63,9 @@ if __name__ == '__main__':
     target_eps = 0.1
     algo_specs = {
         # estimator -> (lambda, alpha)
-        'Retrace': [0.1] * 6,
-        # 'Truncated IS': [0.1] * 6,
-        # 'Recursive Retrace': [0.1] * 6,
-        # 'Moretrace': [0.1] * 6,
-        'Supertrace': [0.1] * 6
+        'Retrace':           [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
+        'Truncated IS':      [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
+        'Recursive Retrace': [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3, 0.3],
+        'Moretrace':         [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
     }
-    plot_lambda_sweep("GridWalk-v0", behavior_eps, target_eps, algo_specs, n_timesteps=5_000, title="Grid Walk")
+    plot_lambda_sweep("Bifurcation-v0", behavior_eps, target_eps, algo_specs, n_timesteps=2_500, title="Bifurcation")

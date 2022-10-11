@@ -31,13 +31,16 @@ class OnlineEligibilityTrace(ABC):
             self.discount_products[k] *= self.discount
             self.lambda_products[k] *= self.lambd
             self.isratio_products[k] = min(MAX_FLOAT32, self.isratio_products[k] * isratio)
+            self.pi_products[k] *= target_prob
+            self.mu_products[k] *= behavior_prob
+            self.retrace_products[k] *= min(1.0, isratio)
+
+            # NOTE: Beta update must come last or implementation will be incorrect
             self.betas[k] = self._compute_beta(k, isratio)
-            self.pi_products[k] = self.pi_products[k] * target_prob
-            self.mu_products[k] = self.mu_products[k] * behavior_prob
 
         # Increment eligibility for the current state-action pair
         self.sa_pairs.append((state, action))
-        for lst in [self.discount_products, self.lambda_products, self.isratio_products, self.betas, self.pi_products, self.mu_products]:
+        for lst in [self.discount_products, self.lambda_products, self.isratio_products, self.betas, self.pi_products, self.mu_products, self.retrace_products]:
             lst.append(1.0)
 
         # Apply current TD error to all timesteps in proportion to eligibility
@@ -55,8 +58,10 @@ class OnlineEligibilityTrace(ABC):
         self.lambda_products = []
         self.isratio_products = []
         self.betas = []
+        # TODO: pi/mu are not currently being used and could be removed
         self.pi_products = []
         self.mu_products = []
+        self.retrace_products = []
 
 
 class Retrace(OnlineEligibilityTrace):
@@ -88,9 +93,9 @@ class Moretrace(OnlineEligibilityTrace):
         return min(lambda_product, isratio_product)
 
 
-class Newtrace(OnlineEligibilityTrace):
+class Moretrace2(OnlineEligibilityTrace):
     def _compute_beta(self, k, isratio):
         super()._compute_beta(k, isratio)
         lambda_product = self.lambda_products[k]
-        f = lambda x: 2.0 - x
-        return lambda_product * self.pi_products[k] * f(self.mu_products[k])
+        retrace_product = self.retrace_products[k]
+        return min(lambda_product, retrace_product)

@@ -3,12 +3,12 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from moretrace.experiments.grid_search import DISCOUNT
 from moretrace.experiments.plot_formatting import preformat_plots, postformat_plots
 from moretrace.experiments.seeding import generate_seeds
 from moretrace.experiments.training import run_control_sweep
 
 
+DISCOUNT = 0.9
 SEEDS = generate_seeds(meta_seed=0, n=48)
 
 
@@ -26,8 +26,8 @@ def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_t
         Y = np.mean(Ys, axis=0)
         X = np.arange(len(Y))
 
-        # 99% confidence interval
-        ERROR = 2.576 * np.std(Ys, axis=0, ddof=1) / np.sqrt(len(seeds))
+        # 95% confidence interval
+        ERROR = 1.96 * np.std(Ys, axis=0, ddof=1) / np.sqrt(len(SEEDS))
 
         print(estimator, params, Y[-1], ERROR[-1])
 
@@ -55,12 +55,13 @@ if __name__ == '__main__':
     # Actions: up, right, down, left
     behavior_eps = 0.2
     target_eps = 0.1
-    for lambd in [0.2, 0.4, 0.6, 0.8, 1.0]:
+    for lambd in [0.4]:
         algo_specs = {
             # estimator -> (lambda, alpha)
-            'Retrace': (lambd, 0.7),
-            # 'Truncated IS': (lambd, 0.7),
+            'Retrace': (lambd, 0.5),
+            # 'Truncated IS': (lambd, 0.5),
             # 'Recursive Retrace': (lambd, 0.7),
-            'Newtrace': (lambd, 0.7)
+            'Moretrace': (lambd, 0.5),
+            # 'Moretrace2': (lambd, 0.5)
         }
-        plot_learning_curves("GridWalk-v0", behavior_eps, target_eps, algo_specs, n_timesteps=2_500, title="Grid Walk", plot_name=f"GridWalk-v0_lambd-{lambd}")
+        plot_learning_curves("Bifurcation-v0", behavior_eps, target_eps, algo_specs, n_timesteps=2_500, title="Bifurcation", plot_name=f"Bifurcation-v0_lambd-{lambd}")
