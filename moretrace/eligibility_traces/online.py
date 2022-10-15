@@ -46,10 +46,10 @@ class OnlineEligibilityTrace(ABC):
         self.t += 1
 
         # Apply current TD error to all timesteps in proportion to eligibility
-        # TODO: Can we vectorize this?
-        for k in range(self.t):
-            s, a = self.states[k], self.actions[k]
-            self.Q[s,a] += self.alpha * (self.discount_products[k] * self.betas[k]) * td_error
+        sl = slice(0, self.t)
+        sa_pairs = (self.states[sl], self.actions[sl])
+        updates = self.alpha * (self.discount_products[sl] * self.betas[sl]) * td_error
+        np.add.at(self.Q, sa_pairs, updates)
 
     @abstractmethod
     def _compute_beta(self, sl, isratio):
