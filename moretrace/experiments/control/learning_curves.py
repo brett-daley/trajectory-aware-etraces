@@ -12,14 +12,14 @@ DISCOUNT = 0.9
 SEEDS = generate_seeds(meta_seed=0, n=48)
 
 
-def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_timesteps, title, plot_name=None):
+def plot_learning_curves(env_id, behavior_eps, target_eps, algo_specs, n_timesteps, title, plot_name=None):
     plt.figure()
     preformat_plots()
 
     # Plot RMS vs Learning Rate
     for estimator, params in algo_specs.items():
         lambd, alpha = params
-        results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], SEEDS, n_timesteps)
+        results = run_control_sweep(env_id, behavior_eps, target_eps, DISCOUNT, [estimator], [lambd], [alpha], SEEDS, n_timesteps)
 
         # Get the episode lengths corresponding to the hyperparameters
         Ys = results[(estimator, *params)]
@@ -50,7 +50,7 @@ def plot_learning_curves(env_id, behavior_policy, target_policy, algo_specs, n_t
     plt.savefig(plot_path + '.pdf', format='pdf')
 
 
-if __name__ == '__main__':
+def main():
     # Gridwalk
     # Actions: up, right, down, left
     behavior_eps = 0.2
@@ -65,3 +65,7 @@ if __name__ == '__main__':
             # 'Moretrace2': (lambd, 0.5)
         }
         plot_learning_curves("Bifurcation-v0", behavior_eps, target_eps, algo_specs, n_timesteps=2_500, title="Bifurcation", plot_name=f"Bifurcation-v0_lambd-{lambd}")
+
+
+if __name__ == '__main__':
+    main()

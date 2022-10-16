@@ -15,14 +15,14 @@ LAMBDA_VALUES = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 SEEDS = generate_seeds(meta_seed=0, n=1_000)
 
 
-def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_timesteps, title):
+def plot_lambda_sweep(env_id, behavior_eps, target_eps, algo_specs, n_timesteps, title):
     plt.figure()
     preformat_plots()
 
     # Plot RMS vs Lambda
     for estimator, best_alphas in algo_specs.items():
         assert len(best_alphas) == len(LAMBDA_VALUES)
-        results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], LAMBDA_VALUES, best_alphas, SEEDS, n_timesteps)
+        results = run_control_sweep(env_id, behavior_eps, target_eps, DISCOUNT, [estimator], LAMBDA_VALUES, best_alphas, SEEDS, n_timesteps)
 
         X, Y, ERROR = [], [], []
         for lambd, alpha in zip(LAMBDA_VALUES, best_alphas):
@@ -56,7 +56,7 @@ def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_time
     plt.savefig(plot_path + '.pdf', format='pdf')
 
 
-if __name__ == '__main__':
+def main():
     # Gridwalk
     # Actions: up, right, down, left
     behavior_eps = 0.2
@@ -69,3 +69,7 @@ if __name__ == '__main__':
         'Moretrace':         [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
     }
     plot_lambda_sweep("Bifurcation-v0", behavior_eps, target_eps, algo_specs, n_timesteps=2_500, title="Bifurcation")
+
+
+if __name__ == '__main__':
+    main()
