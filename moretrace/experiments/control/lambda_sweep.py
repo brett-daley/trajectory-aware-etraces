@@ -22,10 +22,10 @@ def plot_lambda_sweep(env_id, behavior_policy, target_policy, algo_specs, n_time
     # Plot RMS vs Lambda
     for estimator, best_alphas in algo_specs.items():
         assert len(best_alphas) == len(LAMBDA_VALUES)
+        results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], LAMBDA_VALUES, best_alphas, SEEDS, n_timesteps)
 
         X, Y, ERROR = [], [], []
         for lambd, alpha in zip(LAMBDA_VALUES, best_alphas):
-            results = run_control_sweep(env_id, behavior_policy, target_policy, DISCOUNT, [estimator], [lambd], [alpha], SEEDS, n_timesteps)
             key = (estimator, lambd, alpha)
             ys = results[key]
             y = np.mean(ys, axis=0)
