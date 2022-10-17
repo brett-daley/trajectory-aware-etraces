@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
+from moretrace.eligibility_traces.vector import Vector
+
 
 # Use this number as "infinity"
 MAX_FLOAT32 = np.finfo(np.float32).max
@@ -13,7 +15,6 @@ class OnlineEligibilityTrace(ABC):
         assert 0.0 <= lambd <= 1.0
         self.discount = discount
         self.lambd = lambd
-        self._L = 10_000  # Max array length, must be large enough to fit one episode
         self.reset_traces()
 
     def set(self, Q, alpha):
@@ -27,81 +28,72 @@ class OnlineEligibilityTrace(ABC):
         assert 0.0 <= target_prob <= 1.0
         isratio = target_prob / behavior_prob
 
-        self.states[self.t] = state
-        self.actions[self.t] = action
+        self.states.append(state)
+        self.actions.append(action)
 
         # Decay all past eligibilities
-        sl = slice(0, self.t)
-        self.discount_products[sl] *= self.discount
-        self.lambda_products[sl] *= self.lambd
-        self.isratio_products[sl] = np.minimum(MAX_FLOAT32, self.isratio_products[sl] * isratio)
-        self.pi_products[sl] *= target_prob
-        self.mu_products[sl] *= behavior_prob
-        self.retrace_products[sl] *= min(1.0, isratio)
+        self.discount_products.multiply(self.discount)
+        self.lambda_products.multiply(self.lambd)
+        self.isratio_products.assign( np.minimum(MAX_FLOAT32, self.isratio_products.numpy() * isratio) )
+        self.pi_products.multiply(target_prob)
+        self.mu_products.multiply(behavior_prob)
+        self.retrace_products.multiply(min(1.0, isratio))
         # NOTE: Beta update must come last or implementation will be incorrect
-        self.betas[sl] = self._compute_beta(sl, isratio)
+        self._update_beta(isratio)
 
         # Increment eligibility for the current state-action pair
-        # (Arrays are initialized as ones, so incrementing t handles this implicitly)
-        self.t += 1
+        for vector in self.eligibilities:
+            vector.append(1.0)
 
         # Apply current TD error to all timesteps in proportion to eligibility
-        sl = slice(0, self.t)
-        sa_pairs = (self.states[sl], self.actions[sl])
-        updates = self.alpha * (self.discount_products[sl] * self.betas[sl]) * td_error
+        sa_pairs = (self.states.numpy(), self.actions.numpy())
+        updates = self.alpha * (self.discount_products.numpy() * self.betas.numpy()) * td_error
         np.add.at(self.Q, sa_pairs, updates)
 
     @abstractmethod
-    def _compute_beta(self, sl, isratio):
+    def _update_beta(self, isratio):
         raise NotImplementedError
 
     def reset_traces(self):
-        self.t = 0  # Current episode length
-
         # NOTE: We assume states/actions are discrete integers here
-        self.states = np.empty(self._L, dtype=np.int32)
-        self.actions = np.empty(self._L, dtype=np.int32)
+        self.states = Vector(dtype=np.int32)
+        self.actions = Vector(dtype=np.int32)
 
-        self.discount_products = self.ones()
-        self.lambda_products = self.ones()
-        self.isratio_products = self.ones()
-        self.betas = self.ones()
+        # Here, an "eligibility" is any vector that is incremented by 1 after a state-action visit
         # TODO: pi/mu are not currently being used and could be removed
-        self.pi_products = self.ones()
-        self.mu_products = self.ones()
-        self.retrace_products = self.ones()
-
-    def ones(self, element_dtype=np.float64):
-        return np.ones(self._L, dtype=element_dtype)
+        self.discount_products, self.lambda_products, self.isratio_products, self.betas, \
+            self.pi_products, self.mu_products, self.retrace_products \
+            = self.eligibilities = [Vector() for _ in range(7)]
 
 
 class Retrace(OnlineEligibilityTrace):
-    def _compute_beta(self, sl, isratio):
+    def _update_beta(self, isratio):
         trace = self.lambd * min(1.0, isratio)
-        return trace * self.betas[sl]
+        self.betas.multiply(trace)
 
 
 class TruncatedIS(OnlineEligibilityTrace):
-    def _compute_beta(self, sl, isratio):
-        lambda_product = self.lambda_products[sl]
-        isratio_product = self.isratio_products[sl]
-        return lambda_product * np.minimum(1.0, isratio_product)
+    def _update_beta(self, isratio):
+        lambda_product = self.lambda_products.numpy()
+        isratio_product = self.isratio_products.numpy()
+        self.betas.assign(lambda_product * np.minimum(1.0, isratio_product))
 
 
 class RecursiveRetrace(OnlineEligibilityTrace):
-    def _compute_beta(self, sl, isratio):
-        return self.lambd * np.minimum(1.0, isratio * self.betas[sl])
+    def _update_beta(self, isratio):
+        betas = self.betas.numpy()
+        self.betas.assign(self.lambd * np.minimum(1.0, isratio * betas))
 
 
 class Moretrace(OnlineEligibilityTrace):
-    def _compute_beta(self, sl, isratio):
-        lambda_product = self.lambda_products[sl]
-        isratio_product = self.isratio_products[sl]
-        return np.minimum(lambda_product, isratio_product)
+    def _update_beta(self, isratio):
+        lambda_product = self.lambda_products.numpy()
+        isratio_product = self.isratio_products.numpy()
+        self.betas.assign(np.minimum(lambda_product, isratio_product))
 
 
 class Moretrace2(OnlineEligibilityTrace):
-    def _compute_beta(self, sl, isratio):
-        lambda_product = self.lambda_products[sl]
-        retrace_product = self.retrace_products[sl]
-        return np.minimum(lambda_product, retrace_product)
+    def _update_beta(self, isratio):
+        lambda_product = self.lambda_products.numpy()
+        retrace_product = self.retrace_products.numpy()
+        self.betas.assign(np.minimum(lambda_product, retrace_product))
