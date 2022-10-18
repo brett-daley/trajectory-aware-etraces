@@ -27,15 +27,15 @@ def plot_lambda_sweep(env_id, behavior_eps, target_eps, algo_specs, n_timesteps,
         X, Y, ERROR = [], [], []
         for lambd, alpha in zip(LAMBDA_VALUES, best_alphas):
             key = (estimator, lambd, alpha)
-            ys = results[key]
+            ys = np.sum(results[key], axis=1)  # Area under the curve
             y = np.mean(ys, axis=0)
 
             # 95% confidence interval
             confidence = 1.96 * np.std(ys, axis=0, ddof=1) / np.sqrt(len(SEEDS))
 
             X.append(lambd)
-            Y.append(y[-1])
-            ERROR.append(confidence[-1])
+            Y.append(y)
+            ERROR.append(confidence)
 
         X, Y, ERROR = map(np.array, [X, Y, ERROR])
         plt.plot(X, Y, label=estimator)

@@ -9,7 +9,7 @@ from moretrace.experiments.training import run_control_sweep
 
 
 DISCOUNT = 0.9
-SEEDS = generate_seeds(meta_seed=0, n=48)
+SEEDS = generate_seeds(meta_seed=0, n=96)
 
 
 def plot_learning_curves(env_id, behavior_eps, target_eps, algo_specs, n_timesteps, title, plot_name=None):
@@ -21,7 +21,7 @@ def plot_learning_curves(env_id, behavior_eps, target_eps, algo_specs, n_timeste
         lambd, alpha = params
         results = run_control_sweep(env_id, behavior_eps, target_eps, DISCOUNT, [estimator], [lambd], [alpha], SEEDS, n_timesteps)
 
-        # Get the episode lengths corresponding to the hyperparameters
+        # Get the discounted returns corresponding to the hyperparameters
         Ys = results[(estimator, *params)]
         Y = np.mean(Ys, axis=0)
         X = np.arange(len(Y))
@@ -29,17 +29,24 @@ def plot_learning_curves(env_id, behavior_eps, target_eps, algo_specs, n_timeste
         # 95% confidence interval
         ERROR = 1.96 * np.std(Ys, axis=0, ddof=1) / np.sqrt(len(SEEDS))
 
-        print(estimator, params, Y[-1], ERROR[-1])
+        AUCs = np.sum(Ys, axis=1)
+        print(estimator, params, np.mean(AUCs),  1.96 * np.std(AUCs, ddof=1) / np.sqrt(len(SEEDS)))
+
+        n = 50  # Downsampling -- set n=1 to keep all data
+        X, Y, ERROR = X[::n], Y[::n], ERROR[::n]
 
         plt.plot(X, Y, label=estimator)
         plt.fill_between(X, (Y - ERROR), (Y + ERROR), alpha=0.25, linewidth=0)
 
-    plt.xlim([0, len(X)])
+    plt.xlim([0, X[-1]])
     # plt.ylim([0, 100])
+
+    SHORTEST_PATH = 7  # For Bifurcation environment
+    plt.plot(X, pow(DISCOUNT, SHORTEST_PATH - 1) * np.ones_like(X), linestyle='--', color='black')
 
     plt.title(title)
     plt.xlabel("Timesteps")
-    plt.ylabel("Episodes")
+    plt.ylabel("Discounted Return")
 
     postformat_plots()
 

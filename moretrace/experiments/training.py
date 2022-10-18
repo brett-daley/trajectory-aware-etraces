@@ -104,12 +104,14 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
         behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
         target_policy = epsilon_greedy_policy(Q, target_eps)
 
-        episodes = 0
-        all_values = []
-        # Apply the updates to each visited state-action pair online
+        returns_vs_timesteps = []  # Assuming zero-order hold
+        disc_return = 0.0
+        t_start = 0
+        last_disc_return = 0.0
         for t in range(n_timesteps + 1):
-            all_values.append(episodes)
+            returns_vs_timesteps.append(last_disc_return)
             s, a, reward, next_state, done = sampler.step(behavior_policy)
+            disc_return += pow(discount, t - t_start) * reward
 
             td_error = reward - Q[s, a]
             if not done:
@@ -118,13 +120,15 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
             etrace.step(s, a, td_error, behavior_policy(s)[a], target_policy(s)[a])
 
             if done:
-                episodes += 1
+                t_start = t + 1
+                last_disc_return = disc_return
+                disc_return = 0.0
+
                 # Update the policies only at the end of each episode
                 behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
                 target_policy = epsilon_greedy_policy(Q, target_eps)
 
-        assert len(all_values) == n_timesteps + 1
-        return all_values
+        return returns_vs_timesteps
 
     return train()
 

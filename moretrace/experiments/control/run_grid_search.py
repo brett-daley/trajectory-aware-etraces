@@ -17,12 +17,13 @@ def grid_search(env_id, behavior_eps, target_eps, estimators, n_timesteps):
             for alpha in ALPHA_VALUES:
                 params = (lambd, alpha)
                 # Get the episode lengths corresponding to the hyperparameters
-                Ys = results[(est, *params)]
+                Ys = np.sum(results[(est, *params)], axis=1)
+
                 Y = np.mean(Ys, axis=0)
                 # 95% confidence interval
-                ERROR = 1.96 * np.std(Ys, axis=0, ddof=1) / np.sqrt(len(SEEDS))
-
-                print(est, params, Y[-1], ERROR[-1])
+                confidence = 1.96 * np.std(Ys, axis=0, ddof=1) / np.sqrt(len(SEEDS))
+                # Print area under the curve
+                print(est, params, Y, confidence)
 
 
 def main():
