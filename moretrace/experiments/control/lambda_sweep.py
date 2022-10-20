@@ -1,40 +1,43 @@
 import os
 
-import gym_classics
 import matplotlib.pyplot as plt
 import numpy as np
 
-from moretrace import grid_walk
+from moretrace.experiments.control.learning_curves import load_experiment
+from moretrace.experiments.control.run_experiments import DATA_DIR, LAMBDA_VALUES
 from moretrace.experiments.plot_formatting import preformat_plots, postformat_plots
-from moretrace.experiments.seeding import generate_seeds
-from moretrace.experiments.training import run_control_sweep
 
 
-DISCOUNT = 0.9
-LAMBDA_VALUES = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-SEEDS = generate_seeds(meta_seed=0, n=1_000)
+ALGO_SPECS = {
+    # estimator -> [alphas]
+    'Retrace':           [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
+    'Truncated IS':      [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
+    'Recursive Retrace': [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3, 0.3],
+    'Moretrace':         [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
+}
 
 
-def plot_lambda_sweep(env_id, behavior_eps, target_eps, algo_specs, n_timesteps, title):
+def plot_lambda_sweep(env_id, algo_specs, title):
     plt.figure()
     preformat_plots()
+
+    root_dir = os.path.join(DATA_DIR, 'test')
 
     # Plot RMS vs Lambda
     for estimator, best_alphas in algo_specs.items():
         assert len(best_alphas) == len(LAMBDA_VALUES)
-        results = run_control_sweep(env_id, behavior_eps, target_eps, DISCOUNT, [estimator], LAMBDA_VALUES, best_alphas, SEEDS, n_timesteps)
 
         X, Y, ERROR = [], [], []
         for lambd, alpha in zip(LAMBDA_VALUES, best_alphas):
-            key = (estimator, lambd, alpha)
-            ys = np.sum(results[key], axis=1)  # Area under the curve
-            y = np.mean(ys, axis=0)
+            Ys = load_experiment(root_dir, estimator, lambd, alpha)
 
+            AUCs = np.sum(Ys, axis=1)
+            mean = np.mean(AUCs)
             # 95% confidence interval
-            confidence = 1.96 * np.std(ys, axis=0, ddof=1) / np.sqrt(len(SEEDS))
+            confidence = 1.96 * np.std(AUCs, ddof=1) / np.sqrt(len(AUCs))
 
             X.append(lambd)
-            Y.append(y)
+            Y.append(mean)
             ERROR.append(confidence)
 
         X, Y, ERROR = map(np.array, [X, Y, ERROR])
@@ -47,7 +50,7 @@ def plot_lambda_sweep(env_id, behavior_eps, target_eps, algo_specs, n_timesteps,
 
     plt.title(title)
     plt.xlabel(r"$\lambda$")
-    plt.ylabel("Episodes")
+    plt.ylabel("AUC")
 
     postformat_plots()
 
@@ -57,18 +60,7 @@ def plot_lambda_sweep(env_id, behavior_eps, target_eps, algo_specs, n_timesteps,
 
 
 def main():
-    # Gridwalk
-    # Actions: up, right, down, left
-    behavior_eps = 0.2
-    target_eps = 0.1
-    algo_specs = {
-        # estimator -> (lambda, alpha)
-        'Retrace':           [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
-        'Truncated IS':      [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
-        'Recursive Retrace': [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3, 0.3],
-        'Moretrace':         [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
-    }
-    plot_lambda_sweep("Bifurcation-v0", behavior_eps, target_eps, algo_specs, n_timesteps=2_500, title="Bifurcation")
+    plot_lambda_sweep("Bifurcation-v0", ALGO_SPECS, title="Bifurcation")
 
 
 if __name__ == '__main__':

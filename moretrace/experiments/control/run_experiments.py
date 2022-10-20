@@ -6,10 +6,10 @@ from moretrace.experiments.seeding import generate_seeds
 from moretrace.experiments.training import run_control_sweep
 
 
-ROOT_DIR = 'data'
+DATA_DIR = 'data'
 
 DISCOUNT = 0.9
-LAMBDA_VALUES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+LAMBDA_VALUES = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 ALPHA_VALUES = [0.1, 0.3, 0.5, 0.7, 0.9]
 ESTIMATORS = ['Retrace', 'Truncated IS', 'Recursive Retrace', 'Moretrace']
 
@@ -41,10 +41,10 @@ def main():
     n_timesteps = 2_500
 
     results = run_control_sweep(env_id, behavior_eps, target_eps, DISCOUNT, ESTIMATORS, LAMBDA_VALUES, ALPHA_VALUES, TRAIN_SEEDS, n_timesteps)
-    store_data(results, TRAIN_SEEDS, root_dir=os.path.join(ROOT_DIR, 'train'))
+    store_data(results, TRAIN_SEEDS, root_dir=os.path.join(DATA_DIR, 'train'))
 
     results = run_control_sweep(env_id, behavior_eps, target_eps, DISCOUNT, ESTIMATORS, LAMBDA_VALUES, ALPHA_VALUES, TEST_SEEDS, n_timesteps)
-    store_data(results, TEST_SEEDS, root_dir=os.path.join(ROOT_DIR, 'test'))
+    store_data(results, TEST_SEEDS, root_dir=os.path.join(DATA_DIR, 'test'))
 
 
 if __name__ == '__main__':
