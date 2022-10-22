@@ -1,6 +1,6 @@
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
-from itertools import product
+from itertools import count, product
 
 import gym
 import numpy as np
@@ -51,6 +51,25 @@ def epsilon_greedy_policy(Q, epsilon):
         # Return the epsilon-mixture of the distributions
         return epsilon * random + (1-epsilon) * greedy
     return policy
+
+
+def linear_interpolation(episode_stats, n_timesteps):
+    values = np.empty(n_timesteps + 1)
+    for (x1, y1), (x2, y2) in zip(episode_stats[:-1], episode_stats[1:]):
+        dx = x2 - x1
+        last_iteration = (x2 >= len(values))
+        x2 = min(x2, len(values))
+        values[x1:x2] = np.linspace(y1, y2, num=dx)[:(x2 - x1)]
+        if last_iteration:
+            break
+
+    # Sanity check
+    for x, y in episode_stats:
+        if x >= len(values):
+            break
+        assert values[x] == y
+
+    return values
 
 
 def run_prediction_trial(env_id, behavior_probs, target_probs, etrace, learning_rate, n_episodes, seed):
@@ -104,12 +123,10 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
         behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
         target_policy = epsilon_greedy_policy(Q, target_eps)
 
-        returns_vs_timesteps = []  # Assuming zero-order hold
+        episode_stats = [(0, 0.0)]
         disc_return = 0.0
         t_start = 0
-        last_disc_return = 0.0
-        for t in range(n_timesteps + 1):
-            returns_vs_timesteps.append(last_disc_return)
+        for t in count():
             s, a, reward, next_state, done = sampler.step(behavior_policy)
             disc_return += pow(discount, t - t_start) * reward
 
@@ -120,15 +137,17 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
             etrace.step(s, a, td_error, behavior_policy(s)[a], target_policy(s)[a])
 
             if done:
+                episode_stats.append((t, disc_return))
+
                 t_start = t + 1
-                last_disc_return = disc_return
                 disc_return = 0.0
 
                 # Update the policies only at the end of each episode
                 behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
                 target_policy = epsilon_greedy_policy(Q, target_eps)
 
-        return returns_vs_timesteps
+                if t >= n_timesteps:
+                    return linear_interpolation(episode_stats, n_timesteps)
 
     return train()
 
