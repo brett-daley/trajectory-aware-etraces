@@ -54,14 +54,12 @@ def epsilon_greedy_policy(Q, epsilon):
 
 
 def linear_interpolation(episode_stats, n_timesteps):
-    values = np.empty(n_timesteps + 1)
+    values = []
     for (x1, y1), (x2, y2) in zip(episode_stats[:-1], episode_stats[1:]):
         dx = x2 - x1
-        last_iteration = (x2 >= len(values))
-        x2 = min(x2, len(values))
-        values[x1:x2] = np.linspace(y1, y2, num=dx)[:(x2 - x1)]
-        if last_iteration:
-            break
+        values.append(np.linspace(y1, y2, num=dx))
+    values = np.concatenate(values)[:n_timesteps + 1]
+    assert len(values) == n_timesteps + 1
 
     # Sanity check
     for x, y in episode_stats:
@@ -146,8 +144,13 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
                 behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
                 target_policy = epsilon_greedy_policy(Q, target_eps)
 
-                if t >= n_timesteps:
+                if t > n_timesteps:
                     return linear_interpolation(episode_stats, n_timesteps)
+
+            # If the episode still hasn't terminated by now, just end it
+            if t > n_timesteps + 200:
+                episode_stats.append((t, disc_return))
+                return linear_interpolation(episode_stats, n_timesteps)
 
     return train()
 
