@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, deque
 from concurrent.futures import ProcessPoolExecutor
 from itertools import count, product
 
@@ -51,6 +51,15 @@ def epsilon_greedy_policy(Q, epsilon):
         # Return the epsilon-mixture of the distributions
         return epsilon * random + (1-epsilon) * greedy
     return policy
+
+
+def smooth(episode_stats, window=100):
+    new_stats = []
+    buffer = deque(maxlen=window)
+    for x, y in episode_stats:
+        buffer.append(y)
+        new_stats.append((x, np.mean(buffer)))
+    return new_stats
 
 
 def linear_interpolation(episode_stats, n_timesteps):
@@ -145,11 +154,13 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
                 target_policy = epsilon_greedy_policy(Q, target_eps)
 
                 if t > n_timesteps:
+                    episode_stats = smooth(episode_stats)
                     return linear_interpolation(episode_stats, n_timesteps)
 
             # If the episode still hasn't terminated by now, just end it
             if t > n_timesteps + 200:
                 episode_stats.append((t, disc_return))
+                episode_stats = smooth(episode_stats)
                 return linear_interpolation(episode_stats, n_timesteps)
 
     return train()
