@@ -120,6 +120,11 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
     # TODO: Ideally, we'd just pass these args into the constructor
     etrace.set(Q, learning_rate)
 
+    # To make sure the agent sees the goal, we set the behavior epsilon to 1 for the first episodes
+    def get_behavior_policy(n_episodes):
+        eps = 1.0 if (n_episodes < 2) else behavior_eps
+        return epsilon_greedy_policy(Q, eps)
+
     def train():
         discount = etrace.discount
         assert 0.0 <= discount <= 1.0
@@ -127,7 +132,7 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
 
         etrace.reset_traces()
         done = False
-        behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
+        behavior_policy = get_behavior_policy(n_episodes=0)
         target_policy = epsilon_greedy_policy(Q, target_eps)
 
         episode_stats = [(0, 0.0)]
@@ -150,7 +155,7 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
                 disc_return = 0.0
 
                 # Update the policies only at the end of each episode
-                behavior_policy = epsilon_greedy_policy(Q, behavior_eps)
+                behavior_policy = get_behavior_policy(n_episodes=len(episode_stats) - 1)
                 target_policy = epsilon_greedy_policy(Q, target_eps)
 
                 if t > n_timesteps:
