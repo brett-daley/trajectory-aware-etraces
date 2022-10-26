@@ -112,24 +112,40 @@ def run_prediction_trial(env_id, behavior_probs, target_probs, etrace, learning_
     return rms_errors
 
 
+# Time limit to ensure training/benchmarking doesn't get stuck in infinite loop
+SAFE_TERMINATE_AFTER = 50
+
+
 def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n_timesteps, seed):
     sampler = EnvSampler(env_id, seed)
+    test_sampler = EnvSampler(env_id, seed + 1)
     env = sampler.env
     # NOTE: It's really important to randomly initialize the Q-function
     Q = 0.1 * sampler.np_random.randn(env.observation_space.n, env.action_space.n)
     # TODO: Ideally, we'd just pass these args into the constructor
     etrace.set(Q, learning_rate)
 
+    discount = etrace.discount
+    assert 0.0 <= discount <= 1.0
+    assert 0.0 <= learning_rate <= 1.0
+
     # To make sure the agent sees the goal, we set the behavior epsilon to 1 for the first episodes
     def get_behavior_policy(n_episodes):
         eps = 1.0 if (n_episodes < 2) else behavior_eps
         return epsilon_greedy_policy(Q, eps)
 
-    def train():
-        discount = etrace.discount
-        assert 0.0 <= discount <= 1.0
-        assert 0.0 <= learning_rate <= 1.0
+    def benchmark_greedy_policy():
+        policy = epsilon_greedy_policy(Q, epsilon=0.0)
+        disc_return = 0.0
 
+        for t in count():
+            s, a, reward, next_state, done = test_sampler.step(policy)
+            disc_return += pow(discount, t) * reward
+
+            if done or (t >= SAFE_TERMINATE_AFTER):
+                return disc_return
+
+    def train():
         etrace.reset_traces()
         done = False
         behavior_policy = get_behavior_policy(n_episodes=0)
@@ -149,7 +165,7 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
             etrace.step(s, a, td_error, behavior_policy(s)[a], target_policy(s)[a])
 
             if done:
-                episode_stats.append((t, disc_return))
+                episode_stats.append((t, benchmark_greedy_policy()))
 
                 t_start = t + 1
                 disc_return = 0.0
@@ -163,8 +179,8 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
                     return linear_interpolation(episode_stats, n_timesteps)
 
             # If the episode still hasn't terminated by now, just end it
-            if t > n_timesteps + 200:
-                episode_stats.append((t, disc_return))
+            if t > n_timesteps + SAFE_TERMINATE_AFTER:
+                episode_stats.append((t, benchmark_greedy_policy()))
                 episode_stats = smooth(episode_stats)
                 return linear_interpolation(episode_stats, n_timesteps)
 
