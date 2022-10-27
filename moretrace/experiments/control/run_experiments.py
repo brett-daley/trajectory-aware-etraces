@@ -38,7 +38,7 @@ def main():
     env_id = 'Bifurcation-v0'
     behavior_eps = 0.2
     target_eps = 0.1
-    n_timesteps = 2_500
+    n_timesteps = 3_000
 
     results = run_control_sweep(env_id, behavior_eps, target_eps, DISCOUNT, ESTIMATORS, LAMBDA_VALUES, ALPHA_VALUES, TRAIN_SEEDS, n_timesteps)
     store_data(results, TRAIN_SEEDS, root_dir=os.path.join(DATA_DIR, 'train'))

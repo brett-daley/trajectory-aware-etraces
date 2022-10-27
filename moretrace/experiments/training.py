@@ -121,7 +121,7 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
     test_sampler = EnvSampler(env_id, seed + 1)
     env = sampler.env
     # NOTE: It's really important to randomly initialize the Q-function
-    Q = 0.1 * sampler.np_random.randn(env.observation_space.n, env.action_space.n)
+    Q = 0.01 * sampler.np_random.randn(env.observation_space.n, env.action_space.n)
     # TODO: Ideally, we'd just pass these args into the constructor
     etrace.set(Q, learning_rate)
 
@@ -131,7 +131,7 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
 
     # To make sure the agent sees the goal, we set the behavior epsilon to 1 for the first episodes
     def get_behavior_policy(n_episodes):
-        eps = 1.0 if (n_episodes < 2) else behavior_eps
+        eps = 1.0 if (n_episodes < 5) else behavior_eps
         return epsilon_greedy_policy(Q, eps)
 
     def benchmark_greedy_policy():
