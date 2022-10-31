@@ -134,8 +134,8 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
         eps = 1.0 if (n_episodes < 5) else behavior_eps
         return epsilon_greedy_policy(Q, eps)
 
-    def benchmark_greedy_policy():
-        policy = epsilon_greedy_policy(Q, epsilon=0.0)
+    def benchmark_policy():
+        policy = epsilon_greedy_policy(Q, epsilon=0.05)
         disc_return = 0.0
 
         for t in count():
@@ -165,7 +165,7 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
             etrace.step(s, a, td_error, behavior_policy(s)[a], target_policy(s)[a])
 
             if done:
-                episode_stats.append((t, benchmark_greedy_policy()))
+                episode_stats.append((t, benchmark_policy()))
 
                 t_start = t + 1
                 disc_return = 0.0
@@ -180,7 +180,7 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
 
             # If the episode still hasn't terminated by now, just end it
             if t > n_timesteps + SAFE_TERMINATE_AFTER:
-                episode_stats.append((t, benchmark_greedy_policy()))
+                episode_stats.append((t, benchmark_policy()))
                 episode_stats = smooth(episode_stats)
                 return linear_interpolation(episode_stats, n_timesteps)
 
