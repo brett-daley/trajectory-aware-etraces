@@ -1,7 +1,7 @@
 from gym_classics.envs.abstract.gridworld import Gridworld
 
 
-class Bifurcation(Gridworld):
+class BifurcatedGridworld(Gridworld):
     def __init__(self):
         self._goal = (4, 2)
         blocks = {

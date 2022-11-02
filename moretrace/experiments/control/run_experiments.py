@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 
+import moretrace.envs
 from moretrace.experiments.seeding import generate_seeds
 from moretrace.experiments.training import run_control_sweep
 
@@ -35,7 +36,7 @@ def store_data(results, seeds, root_dir):
 def main():
     # Gridwalk
     # Actions: up, right, down, left
-    env_id = 'Bifurcation-v0'
+    env_id = 'BifurcatedGridworld-v0'
     behavior_eps = 0.2
     target_eps = 0.1
     n_timesteps = 3_000

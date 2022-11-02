@@ -5,7 +5,6 @@ from itertools import count, product
 import gym
 import numpy as np
 
-from moretrace import grid_walk
 import moretrace.eligibility_traces.online as eligibility_traces
 from moretrace.experiments.sampling import EnvSampler
 

@@ -10,14 +10,14 @@ from moretrace.experiments.plot_formatting import preformat_plots, postformat_pl
 
 ALGO_SPECS = {
     # estimator -> [alphas]
-    'Retrace':           [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
-    'Truncated IS':      [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
-    'Recursive Retrace': [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3, 0.3],
-    'Moretrace':         [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3, 0.3, 0.3, 0.3],
+    'Retrace':           [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.7, 0.5],
+    'Truncated IS':      [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5, 0.5, 0.5, 0.3],
+    'Recursive Retrace': [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5, 0.5],
+    'Moretrace':         [0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5, 0.5, 0.5, 0.5, 0.3],
 }
 
 
-def plot_lambda_sweep(env_id, algo_specs, title):
+def plot_lambda_sweep(algo_specs, title, plot_name):
     plt.figure()
     preformat_plots()
 
@@ -46,21 +46,21 @@ def plot_lambda_sweep(env_id, algo_specs, title):
 
         plt.xlim([0, 1])
         plt.xticks(np.linspace(0.0, 1.0, 10 + 1))
-        # plt.ylim([0.0, 1.0])
+        plt.ylim([1160, 1300])
 
     plt.title(title)
     plt.xlabel(r"$\lambda$")
-    plt.ylabel("AUC")
+    plt.ylabel("Area Under the Curve")
 
     postformat_plots()
 
-    plot_path = os.path.join('plots', 'lambda-' + env_id)
+    plot_path = os.path.join('plots', plot_name)
     plt.savefig(plot_path + '.png')
     plt.savefig(plot_path + '.pdf', format='pdf')
 
 
 def main():
-    plot_lambda_sweep("Bifurcation-v0", ALGO_SPECS, title="Bifurcation")
+    plot_lambda_sweep(ALGO_SPECS, title="Bifurcated Gridworld", plot_name="BifurcatedGridworld_lambda-sweep")
 
 
 if __name__ == '__main__':

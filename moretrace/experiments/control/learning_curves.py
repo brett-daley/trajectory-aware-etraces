@@ -15,7 +15,7 @@ def load_experiment(root_dir, estimator, lambd, alpha):
     return np.array([np.loadtxt(f) for f in files])
 
 
-def plot_learning_curves(env_id, algo_specs, title, plot_name=None):
+def plot_learning_curves(algo_specs, title, plot_name):
     plt.figure()
     preformat_plots()
 
@@ -52,8 +52,6 @@ def plot_learning_curves(env_id, algo_specs, title, plot_name=None):
 
     postformat_plots()
 
-    if plot_name is None:
-        plot_name = env_id
     plot_path = os.path.join('plots', plot_name)
     plt.savefig(plot_path + '.png')
     plt.savefig(plot_path + '.pdf', format='pdf')
@@ -64,11 +62,10 @@ def main():
     estimators = list(ALGO_SPECS.keys())
 
     for i, lambd in enumerate(LAMBDA_VALUES):
-        if lambd == 0.0:
-            continue
         # estimator -> (lambda, alpha)
         algo_specs = {est: (lambd, ALGO_SPECS[est][i]) for est in estimators}
-        plot_learning_curves("Bifurcation-v0", algo_specs, title="Bifurcation", plot_name=f"Bifurcation-v0_lambd-{lambd}")
+        str_lambda = str(int(lambd) if lambd == int(lambd) else lambd)
+        plot_learning_curves(algo_specs, title=fr"Bifurcated Gridworld ($\lambda={str_lambda}$)", plot_name=f"BifurcatedGridworld_lambda-{lambd}")
         print()
 
 
