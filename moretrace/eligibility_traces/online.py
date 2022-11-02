@@ -85,15 +85,8 @@ class RecursiveRetrace(OnlineEligibilityTrace):
         self.betas.assign(self.lambd * np.minimum(1.0, isratio * betas))
 
 
-class Moretrace(OnlineEligibilityTrace):
+class RBIS(OnlineEligibilityTrace):
     def _update_beta(self, isratio):
         lambda_product = self.lambda_products.numpy()
         isratio_product = self.isratio_products.numpy()
         self.betas.assign(np.minimum(lambda_product, isratio_product))
-
-
-class Moretrace2(OnlineEligibilityTrace):
-    def _update_beta(self, isratio):
-        lambda_product = self.lambda_products.numpy()
-        retrace_product = self.retrace_products.numpy()
-        self.betas.assign(np.minimum(lambda_product, retrace_product))

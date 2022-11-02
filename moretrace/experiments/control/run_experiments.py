@@ -12,7 +12,7 @@ DATA_DIR = 'data'
 DISCOUNT = 0.9
 LAMBDA_VALUES = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 ALPHA_VALUES = [0.1, 0.3, 0.5, 0.7, 0.9]
-ESTIMATORS = ['Retrace', 'Truncated IS', 'Recursive Retrace', 'Moretrace']
+ESTIMATORS = ['Retrace', 'Truncated IS', 'Recursive Retrace', 'RBIS']
 
 TRAIN_SEEDS = generate_seeds(meta_seed=0, n=1_000)
 TEST_SEEDS = generate_seeds(meta_seed=1, n=1_000)

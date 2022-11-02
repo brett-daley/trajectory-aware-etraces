@@ -121,19 +121,9 @@ class Retrace(EligibilityTrace):
         return self.lambd * min(1.0, target_prob / behavior_prob)
 
 
-class Moretrace(TrajectoryAwareEligibilityTrace):
+class RBIS(TrajectoryAwareEligibilityTrace):
     def _compute_betas(self, lambda_products, isratio_products, isratio, betas):
         return np.minimum(lambda_products, isratio_products)
-
-
-class Moretrace2(TrajectoryAwareEligibilityTrace):
-    def _compute_betas(self, lambda_products, isratio_products, isratio, betas):
-        return np.minimum(lambda_products, betas * isratio)
-
-
-class Moretrace3(TrajectoryAwareEligibilityTrace):
-    def _compute_betas(self, lambda_products, isratio_products, isratio, betas):
-        return np.minimum(lambda_products, np.minimum(isratio_products, betas * isratio))
 
 
 class RecursiveRetrace(TrajectoryAwareEligibilityTrace):
