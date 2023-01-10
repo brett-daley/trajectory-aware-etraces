@@ -15,11 +15,13 @@ def preformat_plots():
     plt.rcParams.update({'axes.prop_cycle': color_cycler})
 
 
-def postformat_plots():
+def postformat_plots(aspect=1.0):
     # Make axes square
     ax = plt.gca()
-    ax.set_aspect(1.0 / ax.get_data_ratio())
-    plt.gcf().set_size_inches(6.4, 6.4)
+    ax.set_aspect(1.0 / (aspect * ax.get_data_ratio()))
+    height_in = 6
+    width_in = aspect * height_in
+    plt.gcf().set_size_inches(width_in, height_in)
 
     plt.legend(loc='best', frameon=False, framealpha=0.0, fontsize=16)
 
