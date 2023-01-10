@@ -15,7 +15,7 @@ def preformat_plots():
     plt.rcParams.update({'axes.prop_cycle': color_cycler})
 
 
-def postformat_plots(aspect=1.0):
+def postformat_plots(aspect=1.0, legend=True):
     # Make axes square
     ax = plt.gca()
     ax.set_aspect(1.0 / (aspect * ax.get_data_ratio()))
@@ -23,7 +23,8 @@ def postformat_plots(aspect=1.0):
     width_in = aspect * height_in
     plt.gcf().set_size_inches(width_in, height_in)
 
-    plt.legend(loc='best', frameon=False, framealpha=0.0, fontsize=16)
+    if legend:
+        plt.legend(loc='best', frameon=False, framealpha=0.0, fontsize=16)
 
     # Turn off top/right borders
     ax.spines['right'].set_visible(False)

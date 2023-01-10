@@ -52,7 +52,7 @@ def plot_lambda_sweep(algo_specs, title, plot_name):
     plt.xlabel(r"$\lambda$")
     plt.ylabel("Area Under the Curve")
 
-    postformat_plots(aspect=2.0)
+    postformat_plots(aspect=2.0, legend=False)
 
     plot_path = os.path.join('plots', plot_name)
     plt.savefig(plot_path + '.png')
