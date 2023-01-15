@@ -3,9 +3,9 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from moretrace.experiments.control.learning_curves import load_experiment
-from moretrace.experiments.control.run_experiments import DATA_DIR, LAMBDA_VALUES
-from moretrace.experiments.plot_formatting import preformat_plots, postformat_plots
+from trajectory_aware_etraces.experiments.control.learning_curves import load_experiment
+from trajectory_aware_etraces.experiments.control.run_experiments import DATA_DIR, LAMBDA_VALUES
+from trajectory_aware_etraces.experiments.plot_formatting import preformat_plots, postformat_plots
 
 
 ALGO_SPECS = {
@@ -54,7 +54,9 @@ def plot_lambda_sweep(algo_specs, title, plot_name):
 
     postformat_plots(aspect=2.0, legend=False)
 
-    plot_path = os.path.join('plots', plot_name)
+    plot_dir = 'plots'
+    os.makedirs(plot_dir, exist_ok=True)
+    plot_path = os.path.join(plot_dir, plot_name)
     plt.savefig(plot_path + '.png')
     plt.savefig(plot_path + '.pdf', format='pdf')
 

@@ -2,8 +2,8 @@ import os
 
 import numpy as np
 
-from moretrace.experiments.control.learning_curves import load_experiment
-from moretrace.experiments.control.run_experiments import (DATA_DIR, LAMBDA_VALUES, ALPHA_VALUES, ESTIMATORS)
+from trajectory_aware_etraces.experiments.control.learning_curves import load_experiment
+from trajectory_aware_etraces.experiments.control.run_experiments import (DATA_DIR, LAMBDA_VALUES, ALPHA_VALUES, ESTIMATORS)
 
 
 def main():

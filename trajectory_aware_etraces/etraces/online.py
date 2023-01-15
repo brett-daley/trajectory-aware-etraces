@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from moretrace.eligibility_traces.vector import Vector
+from trajectory_aware_etraces.etraces.vector import Vector
 
 
 # Use this number as "infinity"

@@ -2,9 +2,9 @@ import os
 
 import numpy as np
 
-import moretrace.envs
-from moretrace.experiments.seeding import generate_seeds
-from moretrace.experiments.training import run_control_sweep
+import trajectory_aware_etraces.envs
+from trajectory_aware_etraces.experiments.seeding import generate_seeds
+from trajectory_aware_etraces.experiments.training import run_control_sweep
 
 
 DATA_DIR = 'data'

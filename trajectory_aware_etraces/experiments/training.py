@@ -5,8 +5,8 @@ from itertools import count, product
 import gym
 import numpy as np
 
-import moretrace.eligibility_traces.online as eligibility_traces
-from moretrace.experiments.sampling import EnvSampler
+import trajectory_aware_etraces.etraces.online as eligibility_traces
+from trajectory_aware_etraces.experiments.sampling import EnvSampler
 
 
 def epsilon_greedy_policy(Q, epsilon):

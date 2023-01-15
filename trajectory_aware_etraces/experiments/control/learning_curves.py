@@ -3,9 +3,9 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from moretrace.experiments.control.run_experiments import (DATA_DIR, DISCOUNT,
+from trajectory_aware_etraces.experiments.control.run_experiments import (DATA_DIR, DISCOUNT,
     LAMBDA_VALUES, ALPHA_VALUES, ESTIMATORS)
-from moretrace.experiments.plot_formatting import preformat_plots, postformat_plots
+from trajectory_aware_etraces.experiments.plot_formatting import preformat_plots, postformat_plots
 
 
 def load_experiment(root_dir, estimator, lambd, alpha):
@@ -52,13 +52,16 @@ def plot_learning_curves(algo_specs, title, plot_name):
 
     postformat_plots()
 
-    plot_path = os.path.join('plots', plot_name)
+    plot_dir = 'plots'
+    os.makedirs(plot_dir, exist_ok=True)
+    plot_path = os.path.join(plot_dir, plot_name)
     plt.savefig(plot_path + '.png')
     plt.savefig(plot_path + '.pdf', format='pdf')
 
 
 def main():
-    from moretrace.experiments.control.lambda_sweep import ALGO_SPECS
+    # Import here to avoid circular import
+    from trajectory_aware_etraces.experiments.control.lambda_sweep import ALGO_SPECS
     estimators = list(ALGO_SPECS.keys())
 
     for i, lambd in enumerate(LAMBDA_VALUES):
