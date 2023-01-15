@@ -9,33 +9,6 @@ import moretrace.eligibility_traces.online as eligibility_traces
 from moretrace.experiments.sampling import EnvSampler
 
 
-def policy_evaluation(env, discount, policy, precision=1e-3):
-    assert 0.0 <= discount <= 1.0
-    assert precision > 0.0
-    Q = np.zeros([env.observation_space.n, env.action_space.n], dtype=np.float64)
-
-    while True:
-        Q_old = Q.copy()
-
-        for s in env.states():
-            for a in env.actions():
-                Q[s, a] = backup(env, discount, policy, Q, s, a)
-
-        if np.abs(Q - Q_old).max() <= precision:
-            return Q
-
-
-def backup(env, discount, policy, Q, state, action):
-    next_states, rewards, dones, probs = env.model(state, action)
-    next_V = (policy[None] @ Q[next_states].T)[0]
-    next_V *= (1.0 - dones)
-    return np.sum(probs * (rewards + discount * next_V))
-
-
-def rms(x, y):
-    return np.sqrt(np.mean(np.square(x - y)))
-
-
 def epsilon_greedy_policy(Q, epsilon):
     assert 0.0 <= epsilon <= 1.0
     n = Q.shape[1]
@@ -76,39 +49,6 @@ def linear_interpolation(episode_stats, n_timesteps):
         assert values[x] == y
 
     return values
-
-
-def run_prediction_trial(env_id, behavior_probs, target_probs, etrace, learning_rate, n_episodes, seed):
-    sampler = EnvSampler(env_id, seed)
-    env = sampler.env
-    Q = np.zeros([env.observation_space.n, env.action_space.n], dtype=np.float64)
-    Q_pi = policy_evaluation(env, etrace.discount, target_probs, precision=1e-9)
-    # TODO: Ideally, we'd just pass these args into the constructor
-    etrace.set(Q, learning_rate)
-
-    def train(episode):
-        discount = etrace.discount
-        assert 0.0 <= discount <= 1.0
-        assert 0.0 <= learning_rate <= 1.0
-
-        # Calculate the 1-step TD errors
-        states, actions, rewards, next_states, dones = map(np.array, zip(*episode))
-        dones = dones.astype(np.float32)
-        td_errors = rewards - Q[states, actions]
-        next_V = (target_probs[None] * Q[next_states]).sum(axis=1)
-        td_errors += discount * (1.0 - dones) * next_V
-
-        # Now apply the updates to each visited state-action pair
-        etrace.reset_traces()
-        for t, (s, a, _, _, _) in enumerate(episode):
-            etrace.step(s, a, td_errors[t], behavior_probs[a], target_probs[a])
-
-    rms_errors = [rms(Q, Q_pi)]
-    for _ in range(n_episodes):
-        episode = sampler.sample_one_episode(lambda s: behavior_probs)
-        train(episode)
-        rms_errors.append(rms(Q, Q_pi))
-    return rms_errors
 
 
 # Time limit to ensure training/benchmarking doesn't get stuck in infinite loop
@@ -186,13 +126,7 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
     return train()
 
 
-def run_prediction_sweep(*args, **kwargs):
-    return _run_sweep(*args, **kwargs, trial_fn=run_prediction_trial)
-
-def run_control_sweep(*args, **kwargs):
-    return _run_sweep(*args, **kwargs, trial_fn=run_control_trial)
-
-def _run_sweep(env_id, behavior, target, discount, return_estimators, lambda_values, learning_rates, seeds, n_timesteps, trial_fn):
+def run_control_sweep(env_id, behavior, target, discount, return_estimators, lambda_values, learning_rates, seeds, n_timesteps):
     n_seeds = len(list(seeds))
 
     all_combos = tuple(product(return_estimators, lambda_values, learning_rates))
@@ -204,7 +138,7 @@ def _run_sweep(env_id, behavior, target, discount, return_estimators, lambda_val
             for (estimator, lambd, lr) in all_combos:
                 key = (estimator, lambd, lr, s)
                 etrace = getattr(eligibility_traces, estimator.replace(' ', ''))(discount, lambd)
-                future = executor.submit(trial_fn, env_id,
+                future = executor.submit(run_control_trial, env_id,
                     behavior, target, etrace, lr, n_timesteps, seed=s)
                 key_to_future_dict[key] = future
 
