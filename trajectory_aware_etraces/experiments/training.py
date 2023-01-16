@@ -5,7 +5,7 @@ from itertools import count, product
 import gym
 import numpy as np
 
-import trajectory_aware_etraces.etraces.online as eligibility_traces
+from trajectory_aware_etraces import algorithms
 from trajectory_aware_etraces.experiments.sampling import EnvSampler
 
 
@@ -55,18 +55,16 @@ def linear_interpolation(episode_stats, n_timesteps):
 SAFE_TERMINATE_AFTER = 50
 
 
-def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n_timesteps, seed):
+def run_control_trial(env_id, behavior_eps, target_eps, etraces, alpha, n_timesteps, seed):
     sampler = EnvSampler(env_id, seed)
     test_sampler = EnvSampler(env_id, seed + 1)
     env = sampler.env
     # NOTE: It's really important to randomly initialize the Q-function
     Q = 0.01 * sampler.np_random.randn(env.observation_space.n, env.action_space.n)
-    # TODO: Ideally, we'd just pass these args into the constructor
-    etrace.set(Q, learning_rate)
 
-    discount = etrace.discount
+    discount = etraces.discount
     assert 0.0 <= discount <= 1.0
-    assert 0.0 <= learning_rate <= 1.0
+    assert 0.0 < alpha <= 1.0
 
     # To make sure the agent sees the goal, we set the behavior epsilon to 1 for the first episodes
     def get_behavior_policy(n_episodes):
@@ -85,25 +83,35 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
                 return disc_return
 
     def train():
-        etrace.reset_traces()
         done = False
         behavior_policy = get_behavior_policy(n_episodes=0)
         target_policy = epsilon_greedy_policy(Q, target_eps)
 
+        states, actions = [], []
         episode_stats = [(0, 0.0)]
         disc_return = 0.0
         t_start = 0
         for t in count():
             s, a, reward, next_state, done = sampler.step(behavior_policy)
+            states.append(s)
+            actions.append(a)
             disc_return += pow(discount, t - t_start) * reward
 
             td_error = reward - Q[s, a]
             if not done:
                 next_V = (target_policy(next_state)[None] * Q[next_state]).sum(axis=1)
                 td_error += discount * next_V
-            etrace.step(s, a, td_error, behavior_policy(s)[a], target_policy(s)[a])
+
+            etraces.accumulate_step(td_error, behavior_policy(s)[a], target_policy(s)[a], done)
+
+            # Apply updates to Q
+            updates = etraces.get_updates()
+            sa_pairs = (states, actions)
+            np.add.at(Q, sa_pairs, alpha * updates)
 
             if done:
+                states.clear()
+                actions.clear()
                 episode_stats.append((t, benchmark_policy()))
 
                 t_start = t + 1
@@ -126,29 +134,30 @@ def run_control_trial(env_id, behavior_eps, target_eps, etrace, learning_rate, n
     return train()
 
 
-def run_control_sweep(env_id, behavior, target, discount, return_estimators, lambda_values, learning_rates, seeds, n_timesteps):
+def run_control_sweep(env_id, behavior, target, discount, return_estimators, lambdas, alphas, seeds, n_timesteps):
     n_seeds = len(list(seeds))
 
-    all_combos = tuple(product(return_estimators, lambda_values, learning_rates))
+    all_combos = tuple(product(return_estimators, lambdas, alphas))
     results = defaultdict(list)
 
     key_to_future_dict = {}
     with ProcessPoolExecutor() as executor:
         for s in seeds:
-            for (estimator, lambd, lr) in all_combos:
-                key = (estimator, lambd, lr, s)
-                etrace = getattr(eligibility_traces, estimator.replace(' ', ''))(discount, lambd)
+            for (estimator, lambd, alpha) in all_combos:
+                key = (estimator, lambd, alpha, s)
+                est_no_spaces = estimator.replace(' ', '')
+                etraces = getattr(algorithms, est_no_spaces)(discount, lambd)
                 future = executor.submit(run_control_trial, env_id,
-                    behavior, target, etrace, lr, n_timesteps, seed=s)
+                    behavior, target, etraces, alpha, n_timesteps, seed=s)
                 key_to_future_dict[key] = future
 
     for key in key_to_future_dict.keys():
         yields = key_to_future_dict[key].result()
-        (estimator, lambd, lr, _) = key
-        results[(estimator, lambd, lr)].append(yields)
+        (estimator, lambd, alpha, _) = key
+        results[(estimator, lambd, alpha)].append(yields)
 
-    for (estimator, lambd, lr) in all_combos:
-        key = (estimator, lambd, lr)
+    for (estimator, lambd, alpha) in all_combos:
+        key = (estimator, lambd, alpha)
         yields = np.array(results[key])
         # assert yields.shape == (n_seeds, n_episodes + 1)
         results[key] = yields
