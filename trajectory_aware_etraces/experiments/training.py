@@ -102,10 +102,9 @@ def run_control_trial(env_id, behavior_eps, target_eps, etraces, alpha, n_timest
                 next_V = (target_policy(next_state)[None] * Q[next_state]).sum(axis=1)
                 td_error += discount * next_V
 
-            etraces.accumulate_step(td_error, behavior_policy(s)[a], target_policy(s)[a], done)
+            updates = etraces.step(td_error, behavior_policy(s)[a], target_policy(s)[a], done)
 
             # Apply updates to Q
-            updates = etraces.get_updates()
             sa_pairs = (states, actions)
             np.add.at(Q, sa_pairs, alpha * updates)
 

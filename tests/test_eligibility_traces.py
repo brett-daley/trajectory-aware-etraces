@@ -27,9 +27,7 @@ def test_online(env_id, behavior_policy, target_policy, etraces, n_episodes):
             td_error = reward
 
             # Calculate online update
-            etraces.accumulate_step(td_error, behavior_policy[a], target_policy[a], done)
-            updates = etraces.get_updates()
-
+            updates = etraces.step(td_error, behavior_policy[a], target_policy[a], done)
             # Apply update (assumes alpha=1)
             sa_pairs = (states, actions)
             np.add.at(Q, sa_pairs, updates)
@@ -54,9 +52,7 @@ def test_offline(env_id, behavior_policy, target_policy, etraces, n_episodes):
     td_errors = rewards.copy()
 
     # Calculate offline updates
-    etraces.accumulate_trajectory(td_errors, behavior_probs, target_probs, dones)
-    updates = etraces.get_updates()
-
+    updates = etraces.trajectory(td_errors, behavior_probs, target_probs, dones)
     # Apply updates (assumes alpha=1)
     sa_pairs = (states, actions)
     np.add.at(Q, sa_pairs, updates)
