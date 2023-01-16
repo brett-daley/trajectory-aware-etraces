@@ -15,11 +15,19 @@ class EligibilityTraces(ABC):
         assert 0.0 <= lambd <= 1.0
         self.discount = discount
         self.lambd = lambd
-        self.reset()
+
+        self._episode_buffer = []
+        self._total_updates = []
+
+        self._reset_traces()
 
     def accumulate_step(self, td_error, behavior_prob, target_prob, done):
         updates = self._process_step(td_error, behavior_prob, target_prob)
-        self._accumulated_updates.append(updates)
+        self._episode_buffer.append(updates)
+
+        if done:
+            self._total_updates.append( reduce_sum(self._episode_buffer) )
+            self._reset_traces()
 
     def accumulate_trajectory(self, td_errors, behavior_probs, target_probs, dones):
         for step in zip(td_errors, behavior_probs, target_probs, dones):
@@ -40,7 +48,7 @@ class EligibilityTraces(ABC):
         self._update_beta(isratio)
 
         # Increment eligibility for the current state-action pair
-        for vector in self.eligibilities:
+        for vector in self.traces:
             vector.append(1.0)
 
         # Scale current TD error for all timesteps in proportion to their eligibilities
@@ -48,23 +56,28 @@ class EligibilityTraces(ABC):
         return updates
 
     def get_updates(self):
-        total_updates = reduce_sum(self._accumulated_updates)
-        self._accumulated_updates.clear()
-        return total_updates
+        if self._episode_buffer:
+            self._total_updates += [reduce_sum(self._episode_buffer)]
+
+        updates = np.concatenate(self._total_updates)
+        self._total_updates.clear()
+        return updates
 
     @abstractmethod
     def _update_beta(self, isratio):
         raise NotImplementedError
 
-    def reset(self):
-        self._accumulated_updates = []
-        # Here, an "eligibility" is any vector that is incremented by 1 after a state-action visit
+    def _reset_traces(self):
+        self._episode_buffer.clear()
+
+        # Here, "traces" are any vector that is incremented by 1 after a state-action visit
         self.discount_products, self.lambda_products, self.isratio_products, self.betas, \
-            = self.eligibilities \
+            = self.traces \
             = tuple(Vector() for _ in range(4))
 
 
 def reduce_sum(arrays):
+    assert arrays
     T = max([len(a) for a in arrays])
     arrays = [np.pad(a, pad_width=(0, T-len(a))) for a in arrays]
     for a in arrays:

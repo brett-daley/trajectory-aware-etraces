@@ -1,3 +1,5 @@
+import itertools
+
 import gym_classics
 import numpy as np
 
@@ -7,44 +9,45 @@ from trajectory_aware_etraces.experiments.sampling import EnvSampler
 from trajectory_aware_etraces.algorithms import RBIS as etrace_cls
 
 
-def test_online(env_id, behavior_policy, target_policy, etraces):
+def test_online(env_id, behavior_policy, target_policy, etraces, n_episodes):
     sampler = EnvSampler(env_id, seed=0)
     env = sampler.env
     Q = np.zeros([env.observation_space.n, env.action_space.n])
 
-    # Sample one episode from the environment
-    states = []
-    actions = []
-    done = False
-    while not done:
-        s, a, reward, next_state, done = sampler.step(lambda s: behavior_policy)
-        states.append(s)
-        actions.append(a)
-        # For simplicity, just use the rewards for the TD errors (bootstrapping disabled)
-        td_error = reward
+    # Sample episodes from the environment
+    for _ in range(n_episodes):
+        states = []
+        actions = []
+        done = False
+        while not done:
+            s, a, reward, next_state, done = sampler.step(lambda s: behavior_policy)
+            states.append(s)
+            actions.append(a)
+            # For simplicity, just use the rewards for the TD errors (bootstrapping disabled)
+            td_error = reward
 
-        # Calculate online update
-        etraces.accumulate_step(td_error, behavior_policy[a], target_policy[a], done)
-        updates = etraces.get_updates()
+            # Calculate online update
+            etraces.accumulate_step(td_error, behavior_policy[a], target_policy[a], done)
+            updates = etraces.get_updates()
 
-        # Apply update (assumes alpha=1)
-        sa_pairs = (states, actions)
-        np.add.at(Q, sa_pairs, updates)
+            # Apply update (assumes alpha=1)
+            sa_pairs = (states, actions)
+            np.add.at(Q, sa_pairs, updates)
 
     print(Q)
 
 
-def test_offline(env_id, behavior_policy, target_policy, etraces):
+def test_offline(env_id, behavior_policy, target_policy, etraces, n_episodes):
     sampler = EnvSampler(env_id, seed=0)
     env = sampler.env
     Q = np.zeros([env.observation_space.n, env.action_space.n])
 
-    # Sample one episode from the environment
-    episode = sampler.sample_one_episode(lambda s: behavior_policy)
+    # Sample episodes from the environment
+    episodes = sampler.sample_episodes(lambda s: behavior_policy, n_episodes)
+    transitions = tuple(itertools.chain(*episodes))
 
     # Convert transitions to numpy arrays
-    states, actions, rewards, next_states, dones = map(np.array, zip(*episode))
-    dones = dones.astype(np.float32)
+    states, actions, rewards, next_states, dones = map(np.array, zip(*transitions))
     behavior_probs = behavior_policy[actions]
     target_probs = target_policy[actions]
     # For simplicity, just use the rewards for the TD errors (bootstrapping disabled)
@@ -63,6 +66,7 @@ def test_offline(env_id, behavior_policy, target_policy, etraces):
 if __name__ == '__main__':
     np.set_printoptions(linewidth=np.inf)
 
+    n_episodes = 2
     behavior_policy = np.array([0.5, 0.5])
     target_policy = behavior_policy.copy()
 
@@ -70,11 +74,11 @@ if __name__ == '__main__':
     # should produce the same results as offline updates.
     etraces = etrace_cls(discount=1.0, lambd=0.9)
     print("Online:")
-    test_online("19Walk-v0", behavior_policy, target_policy, etraces)
+    test_online("19Walk-v0", behavior_policy, target_policy, etraces, n_episodes)
 
     print('---')
 
     # Test case 2: Offline updates.
     etraces = etrace_cls(discount=1.0, lambd=0.9)
     print("Offline:")
-    test_offline("19Walk-v0", behavior_policy, target_policy, etraces)
+    test_offline("19Walk-v0", behavior_policy, target_policy, etraces, n_episodes)
