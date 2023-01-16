@@ -123,7 +123,7 @@ class Retrace(EligibilityTrace):
 
 class RBIS(TrajectoryAwareEligibilityTrace):
     def _compute_betas(self, lambda_products, isratio_products, isratio, betas):
-        return np.minimum(lambda_product, isratio * betas)
+        return np.minimum(lambda_products, isratio * betas)
 
 
 class RecursiveRetrace(TrajectoryAwareEligibilityTrace):
