@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.special import comb as combination
 
+import sys
+sys.path.append('.')
 from counterexamples.onpolicy_binary import max_norm
 
 
@@ -27,10 +29,7 @@ def main():
     gamma = 0.94
 
     P_pi = np.array([[p, 1-p], [p, 1-p]])
-    P_mu = 0.5 * np.ones_like(P_pi)
-
-    # B_0 = I
-    B_tm1 = np.eye(*P_pi.shape)
+    B_tm1 = np.eye(*P_pi.shape)  # B_0 = I
 
     # Calculate Z
     Z = np.zeros_like(B_tm1)

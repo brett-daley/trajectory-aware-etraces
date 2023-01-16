@@ -3,10 +3,10 @@ import itertools
 import gym_classics
 import numpy as np
 
-from trajectory_aware_etraces.experiments.sampling import EnvSampler
+from trajectory_aware_etraces import EnvSampler
 
 # Change this import statement to test a different method:
-from trajectory_aware_etraces.algorithms import RBIS as etrace_cls
+from trajectory_aware_etraces import RBIS as etrace_cls
 
 
 def test_online(env_id, behavior_policy, target_policy, etraces, n_episodes):
