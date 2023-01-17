@@ -1,0 +1,36 @@
+---
+data_dir: data
+plot_dir: plots
+env_str: "Bifurcated Gridworld"
+env_id: BifurcatedGridworld-v0
+discount: 0.9
+max_episode_len: 50  # Time limit to ensure training/benchmarking doesn't get stuck in infinite loop
+shortest_path: 7  # Tells the code what the optimal discounted return should be (for plotting only)
+
+timesteps: 3_000
+behavior_eps: 0.2
+target_eps: 0.1
+eval_eps: 0.05
+explore_episodes: 5
+vf_noise_std: 0.01
+
+train_trials: 1_000
+test_trials: 1_000
+# Train/test seeds must be different to ensure different data!
+train_seed: 0
+test_seed: 1
+
+grid_search:
+  algorithms:
+    - Retrace
+    - "Truncated IS"
+    - "Recursive Retrace"
+    - RBIS
+  lambdas: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+  alphas: [0.1, 0.3, 0.5, 0.7, 0.9]
+
+lambda_sweep_alphas:
+  Retrace: [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.7, 0.5]
+  "Truncated IS": [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5, 0.5, 0.5, 0.3]
+  "Recursive Retrace": [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5, 0.5]
+  RBIS: [0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5, 0.5, 0.5, 0.5, 0.3]

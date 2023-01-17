@@ -2,11 +2,20 @@ from collections import defaultdict, deque
 from concurrent.futures import ProcessPoolExecutor
 from itertools import count, product
 
-import gym
 import numpy as np
+import yaml
 
 from trajectory_aware_etraces import algorithms
 from trajectory_aware_etraces.experiments.sampling import EnvSampler
+
+
+with open('config.yml', 'r') as f:
+    config = yaml.safe_load(f)
+
+max_episode_len = config['max_episode_len']
+eval_eps = config['eval_eps']
+explore_episodes = config['explore_episodes']
+vf_noise_std = config['vf_noise_std']
 
 
 def epsilon_greedy_policy(Q, epsilon):
@@ -51,16 +60,11 @@ def linear_interpolation(episode_stats, n_timesteps):
     return values
 
 
-# Time limit to ensure training/benchmarking doesn't get stuck in infinite loop
-SAFE_TERMINATE_AFTER = 50
-
-
 def run_control_trial(env_id, behavior_eps, target_eps, etraces, alpha, n_timesteps, seed):
     sampler = EnvSampler(env_id, seed)
     test_sampler = EnvSampler(env_id, seed + 1)
     env = sampler.env
-    # NOTE: It's really important to randomly initialize the Q-function
-    Q = 0.01 * sampler.np_random.randn(env.observation_space.n, env.action_space.n)
+    Q = vf_noise_std * sampler.np_random.randn(env.observation_space.n, env.action_space.n)
 
     discount = etraces.discount
     assert 0.0 <= discount <= 1.0
@@ -68,18 +72,18 @@ def run_control_trial(env_id, behavior_eps, target_eps, etraces, alpha, n_timest
 
     # To make sure the agent sees the goal, we set the behavior epsilon to 1 for the first episodes
     def get_behavior_policy(n_episodes):
-        eps = 1.0 if (n_episodes < 5) else behavior_eps
+        eps = 1.0 if (n_episodes < explore_episodes) else behavior_eps
         return epsilon_greedy_policy(Q, eps)
 
     def benchmark_policy():
-        policy = epsilon_greedy_policy(Q, epsilon=0.05)
+        policy = epsilon_greedy_policy(Q, epsilon=eval_eps)
         disc_return = 0.0
 
         for t in count():
             s, a, reward, next_state, done = test_sampler.step(policy)
             disc_return += pow(discount, t) * reward
 
-            if done or (t >= SAFE_TERMINATE_AFTER):
+            if done or (t >= max_episode_len):
                 return disc_return
 
     def train():
@@ -125,7 +129,7 @@ def run_control_trial(env_id, behavior_eps, target_eps, etraces, alpha, n_timest
                     return linear_interpolation(episode_stats, n_timesteps)
 
             # If the episode still hasn't terminated by now, just end it
-            if t > n_timesteps + SAFE_TERMINATE_AFTER:
+            if t > n_timesteps + max_episode_len:
                 episode_stats.append((t, benchmark_policy()))
                 episode_stats = smooth(episode_stats)
                 return linear_interpolation(episode_stats, n_timesteps)

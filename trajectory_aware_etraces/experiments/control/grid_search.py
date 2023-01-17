@@ -1,20 +1,31 @@
 import os
 
 import numpy as np
+import yaml
 
 from trajectory_aware_etraces.experiments.control.learning_curves import load_experiment
-from trajectory_aware_etraces.experiments.control.run_experiments import (DATA_DIR, LAMBDA_VALUES, ALPHA_VALUES, ESTIMATORS)
+
+
+with open('config.yml', 'r') as f:
+    config = yaml.safe_load(f)
+
+data_dir = config['data_dir']
+
+search = config['grid_search']
+algorithms = search['algorithms']
+lambdas = search['lambdas']
+alphas = search['alphas']
 
 
 def main():
     # Grid search uses separate training seeds to avoid biased results
-    root_dir = os.path.join(DATA_DIR, 'train')
+    root_dir = os.path.join(data_dir, 'train')
 
-    for est in ESTIMATORS:
-        print(f"{est}: ---")
-        for lambd in LAMBDA_VALUES:
-            for alpha in ALPHA_VALUES:
-                Ys = load_experiment(root_dir, est, lambd, alpha)
+    for algo in algorithms:
+        print(f"{algo}: ---")
+        for lambd in lambdas:
+            for alpha in alphas:
+                Ys = load_experiment(root_dir, algo, lambd, alpha)
                 AUCs = np.sum(Ys, axis=1)
 
                 mean = np.mean(AUCs)

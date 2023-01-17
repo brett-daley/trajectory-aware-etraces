@@ -2,34 +2,35 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import yaml
 
 from trajectory_aware_etraces.experiments.control.learning_curves import load_experiment
-from trajectory_aware_etraces.experiments.control.run_experiments import DATA_DIR, LAMBDA_VALUES
 from trajectory_aware_etraces.experiments.plot_formatting import preformat_plots, postformat_plots
 
 
-ALGO_SPECS = {
-    # estimator -> [alphas]
-    'Retrace':            [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.7, 0.5],
-    'Truncated IS':       [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5, 0.5, 0.5, 0.3],
-    'Recursive Retrace':  [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5, 0.5],
-    'RBIS':               [0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5, 0.5, 0.5, 0.5, 0.3],
-}
+with open('config.yml', 'r') as f:
+    config = yaml.safe_load(f)
+
+data_dir = config['data_dir']
+plot_dir = config['plot_dir']
+env_str = config['env_str']
+lambdas = config['grid_search']['lambdas']
+algorithms_to_alphas = config['lambda_sweep_alphas']
 
 
-def plot_lambda_sweep(algo_specs, title, plot_name):
+def main():
     plt.figure()
     preformat_plots()
 
-    root_dir = os.path.join(DATA_DIR, 'test')
+    root_dir = os.path.join(data_dir, 'test')
 
     # Plot RMS vs Lambda
-    for estimator, best_alphas in algo_specs.items():
-        assert len(best_alphas) == len(LAMBDA_VALUES)
+    for algorithm, alphas in algorithms_to_alphas.items():
+        assert len(alphas) == len(lambdas)
 
         X, Y, ERROR = [], [], []
-        for lambd, alpha in zip(LAMBDA_VALUES, best_alphas):
-            Ys = load_experiment(root_dir, estimator, lambd, alpha)
+        for lambd, alpha in zip(lambdas, alphas):
+            Ys = load_experiment(root_dir, algorithm, lambd, alpha)
 
             AUCs = np.sum(Ys, axis=1)
             mean = np.mean(AUCs)
@@ -41,14 +42,14 @@ def plot_lambda_sweep(algo_specs, title, plot_name):
             ERROR.append(confidence)
 
         X, Y, ERROR = map(np.array, [X, Y, ERROR])
-        plt.plot(X, Y, label=estimator)
+        plt.plot(X, Y, label=algorithm)
         plt.fill_between(X, (Y - ERROR), (Y + ERROR), alpha=0.25, linewidth=0)
 
         plt.xlim([0, 1])
         plt.xticks(np.linspace(0.0, 1.0, 10 + 1))
         plt.ylim([1160, 1300])
 
-    plt.title(title)
+    plt.title(env_str)
     plt.xlabel(r"$\lambda$")
     plt.ylabel("Area Under the Curve")
 
@@ -56,13 +57,10 @@ def plot_lambda_sweep(algo_specs, title, plot_name):
 
     plot_dir = 'plots'
     os.makedirs(plot_dir, exist_ok=True)
+    plot_name = f"{env_str.replace(' ', '_')}_lambda-sweep"
     plot_path = os.path.join(plot_dir, plot_name)
     plt.savefig(plot_path + '.png')
     plt.savefig(plot_path + '.pdf', format='pdf')
-
-
-def main():
-    plot_lambda_sweep(ALGO_SPECS, title="Bifurcated Gridworld", plot_name="BifurcatedGridworld_lambda-sweep")
 
 
 if __name__ == '__main__':
