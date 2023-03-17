@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import numpy as np
@@ -5,33 +6,28 @@ import yaml
 
 import trajectory_aware_etraces.envs
 from trajectory_aware_etraces.experiments.seeding import generate_seeds
+from trajectory_aware_etraces.experiments import training
 from trajectory_aware_etraces.experiments.training import run_control_sweep
 
 
-with open('config.yml', 'r') as f:
-    config = yaml.safe_load(f)
+CONFIG = None
 
-data_dir = config['data_dir']
-env_id = config['env_id']
-discount = config['discount']
+DATA_DIR = None
+ENV_ID = None
+DISCOUNT = None
+TIMESTEPS = None
+BEHAVIOR_EPS = None
+TARGET_EPS = None
 
-timesteps = config['timesteps']
-behavior_eps = config['behavior_eps']
-target_eps = config['target_eps']
-
-train_trials = config['train_trials']
-test_trials = config['test_trials']
-
-search = config['grid_search']
-algorithms = search['algorithms']
-lambdas = search['lambdas']
-alphas = search['alphas']
+ALGORITHMS = None
+LAMBDAS = None
+ALPHAS = None
 
 
 def store_data(results, seeds, root_dir):
-    for algo in algorithms:
-        for lambd in lambdas:
-            for alpha in alphas:
+    for algo in ALGORITHMS:
+        for lambd in LAMBDAS:
+            for alpha in ALPHAS:
                 algo_no_spaces = algo.replace(' ', '')
                 exp_dir = os.path.join(root_dir, algo_no_spaces, f"lambd-{lambd}_alpha-{alpha}")
                 os.makedirs(exp_dir, exist_ok=True)
@@ -44,18 +40,40 @@ def store_data(results, seeds, root_dir):
 
 
 def main():
-    run = lambda seeds: run_control_sweep(env_id, behavior_eps, target_eps, discount, algorithms, lambdas, alphas, seeds, timesteps)
+    run = lambda seeds: run_control_sweep(ENV_ID, BEHAVIOR_EPS, TARGET_EPS, DISCOUNT, ALGORITHMS, LAMBDAS, ALPHAS, seeds, TIMESTEPS)
 
     # Training data used to hyperparameter selection
-    train_seeds = generate_seeds(meta_seed=config['train_seed'], n=train_trials)
+    train_seeds = generate_seeds(meta_seed=CONFIG['train_seed'], n=CONFIG['train_trials'])
     results = run(train_seeds)
-    store_data(results, train_seeds, root_dir=os.path.join(data_dir, 'train'))
+    store_data(results, train_seeds, root_dir=os.path.join(DATA_DIR, 'train'))
 
     # Test data used for plotting
-    test_seeds = generate_seeds(meta_seed=config['test_seed'], n=test_trials)
+    test_seeds = generate_seeds(meta_seed=CONFIG['test_seed'], n=CONFIG['test_trials'])
     results = run(test_seeds)
-    store_data(results, test_seeds, root_dir=os.path.join(data_dir, 'test'))
+    store_data(results, test_seeds, root_dir=os.path.join(DATA_DIR, 'test'))
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config', type=str)
+    args = parser.parse_args()
+
+    with open(args.config, 'r') as f:
+        config = CONFIG = yaml.safe_load(f)
+        DATA_DIR = config['data_dir']
+        ENV_ID = config['env_id']
+        DISCOUNT = config['discount']
+        TIMESTEPS = config['timesteps']
+        BEHAVIOR_EPS = config['behavior_eps']
+        TARGET_EPS = config['target_eps']
+        TRAIN_TRIALS = config['train_trials']
+        TEST_TRIALS = config['test_trials']
+        training.CONFIG = config
+
+    with open('configs/.grid_search.yml', 'r') as f:
+        config = yaml.safe_load(f)
+        ALGORITHMS = config['algorithms']
+        LAMBDAS = config['lambdas']
+        ALPHAS = config['alphas']
+
     main()

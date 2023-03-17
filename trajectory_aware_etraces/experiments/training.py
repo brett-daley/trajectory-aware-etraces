@@ -9,13 +9,7 @@ from trajectory_aware_etraces import algorithms
 from trajectory_aware_etraces.experiments.sampling import EnvSampler
 
 
-with open('config.yml', 'r') as f:
-    config = yaml.safe_load(f)
-
-max_episode_len = config['max_episode_len']
-eval_eps = config['eval_eps']
-explore_episodes = config['explore_episodes']
-vf_noise_std = config['vf_noise_std']
+CONFIG = None  # HACK: Must be set externally
 
 
 def epsilon_greedy_policy(Q, epsilon):
@@ -61,6 +55,11 @@ def linear_interpolation(episode_stats, n_timesteps):
 
 
 def run_control_trial(env_id, behavior_eps, target_eps, etraces, alpha, n_timesteps, seed):
+    max_episode_len = CONFIG['max_episode_len']
+    eval_eps = CONFIG['eval_eps']
+    explore_episodes = CONFIG['explore_episodes']
+    vf_noise_std = CONFIG['vf_noise_std']
+
     sampler = EnvSampler(env_id, seed)
     test_sampler = EnvSampler(env_id, seed + 1)
     env = sampler.env

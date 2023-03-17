@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import matplotlib.pyplot as plt
@@ -7,19 +8,12 @@ import yaml
 from trajectory_aware_etraces.experiments.plot_formatting import preformat_plots, postformat_plots
 
 
-with open('config.yml', 'r') as f:
-    config = yaml.safe_load(f)
-
-data_dir = config['data_dir']
-env_str = config['env_str']
-discount = config['discount']
-shortest_path = config['shortest_path']
-
-search = config['grid_search']
-lambdas = search['lambdas']
-alphas = search['alphas']
-
-algorithms_to_alphas = config['lambda_sweep_alphas']
+DATA_DIR = None
+ENV_ID = None
+ENV_STR = None
+DISCOUNT = None
+SHORTEST_PATH = None
+ALGORITHMS_TO_ALPHAS = None
 
 
 def load_experiment(root_dir, estimator, lambd, alpha):
@@ -33,7 +27,7 @@ def plot_learning_curves(algo_specs, title, plot_name):
     plt.figure()
     preformat_plots()
 
-    root_dir = os.path.join(data_dir, 'test')
+    root_dir = os.path.join(DATA_DIR, 'test')
 
     # Plot RMS vs Learning Rate
     for algo, params in algo_specs.items():
@@ -55,10 +49,10 @@ def plot_learning_curves(algo_specs, title, plot_name):
         plt.fill_between(X, (Y - ERROR), (Y + ERROR), alpha=0.25, linewidth=0)
 
     plt.xlim([0, X[-1]])
-    plt.ylim([0, 0.6])
+    # plt.ylim([0, 0.6])
 
     # Plot horizontal dashed line for optimal discounted return
-    plt.plot(X, pow(discount, shortest_path - 1) * np.ones_like(X), linestyle='--', color='black')
+    plt.plot(X, pow(DISCOUNT, SHORTEST_PATH - 1) * np.ones_like(X), linestyle='--', color='black')
 
     plt.title(title)
     plt.xlabel("Timesteps")
@@ -74,16 +68,33 @@ def plot_learning_curves(algo_specs, title, plot_name):
 
 
 def main():
-    algorithms = list(algorithms_to_alphas.keys())
+    with open('configs/.grid_search.yml', 'r') as f:
+        config = yaml.safe_load(f)
+        lambdas = config['lambdas']
+
+    algorithms = list(ALGORITHMS_TO_ALPHAS.keys())
 
     for i, lambd in enumerate(lambdas):
         # algorithm -> (lambda, alpha)
-        algo_specs = {algo: (lambd, algorithms_to_alphas[algo][i]) for algo in algorithms}
+        algo_specs = {algo: (lambd, ALGORITHMS_TO_ALPHAS[algo][i]) for algo in algorithms}
         str_lambda = str(int(lambd) if lambd == int(lambd) else lambd)
-        plot_learning_curves(algo_specs, title=fr"{env_str} ($\lambda={str_lambda}$)",
-            plot_name=f"{env_str.replace(' ', '_')}_lambda-{lambd}")
+        plot_learning_curves(algo_specs, title=fr"{ENV_STR} ($\lambda={str_lambda}$)",
+            plot_name=f"{ENV_ID}_lambda-{lambd}")
         print()
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config', type=str)
+    args = parser.parse_args()
+
+    with open(args.config, 'r') as f:
+        config = yaml.safe_load(f)
+        DATA_DIR = config['data_dir']
+        ENV_ID = config['env_id']
+        ENV_STR = config['env_str']
+        DISCOUNT = config['discount']
+        SHORTEST_PATH = config['shortest_path']
+        ALGORITHMS_TO_ALPHAS = config['lambda_sweep_alphas']
+
     main()

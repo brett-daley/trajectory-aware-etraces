@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import matplotlib.pyplot as plt
@@ -8,28 +9,26 @@ from trajectory_aware_etraces.experiments.control.learning_curves import load_ex
 from trajectory_aware_etraces.experiments.plot_formatting import preformat_plots, postformat_plots
 
 
-with open('config.yml', 'r') as f:
-    config = yaml.safe_load(f)
-
-data_dir = config['data_dir']
-plot_dir = config['plot_dir']
-env_str = config['env_str']
-lambdas = config['grid_search']['lambdas']
-algorithms_to_alphas = config['lambda_sweep_alphas']
+DATA_DIR = None
+PLOT_DIR = None
+ENV_ID = None
+ENV_STR = None
+LAMBDAS = None
+ALGORITHMS_TO_ALPHAS = None
 
 
 def main():
     plt.figure()
     preformat_plots()
 
-    root_dir = os.path.join(data_dir, 'test')
+    root_dir = os.path.join(DATA_DIR, 'test')
 
     # Plot RMS vs Lambda
-    for algorithm, alphas in algorithms_to_alphas.items():
-        assert len(alphas) == len(lambdas)
+    for algorithm, alphas in ALGORITHMS_TO_ALPHAS.items():
+        assert len(alphas) == len(LAMBDAS)
 
         X, Y, ERROR = [], [], []
-        for lambd, alpha in zip(lambdas, alphas):
+        for lambd, alpha in zip(LAMBDAS, alphas):
             Ys = load_experiment(root_dir, algorithm, lambd, alpha)
 
             AUCs = np.sum(Ys, axis=1)
@@ -47,9 +46,9 @@ def main():
 
         plt.xlim([0, 1])
         plt.xticks(np.linspace(0.0, 1.0, 10 + 1))
-        plt.ylim([1160, 1300])
+        # plt.ylim([1160, 1300])
 
-    plt.title(env_str)
+    plt.title(ENV_STR)
     plt.xlabel(r"$\lambda$")
     plt.ylabel("Area Under the Curve")
 
@@ -57,11 +56,27 @@ def main():
 
     plot_dir = 'plots'
     os.makedirs(plot_dir, exist_ok=True)
-    plot_name = f"{env_str.replace(' ', '_')}_lambda-sweep"
+    plot_name = f"{ENV_ID}_lambda-sweep"
     plot_path = os.path.join(plot_dir, plot_name)
     plt.savefig(plot_path + '.png')
     plt.savefig(plot_path + '.pdf', format='pdf')
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config', type=str)
+    args = parser.parse_args()
+
+    with open(args.config, 'r') as f:
+        config = yaml.safe_load(f)
+        DATA_DIR = config['data_dir']
+        PLOT_DIR = config['plot_dir']
+        ENV_ID = config['env_id']
+        ENV_STR = config['env_str']
+        ALGORITHMS_TO_ALPHAS = config['lambda_sweep_alphas']
+
+    with open('configs/.grid_search.yml', 'r') as f:
+        config = yaml.safe_load(f)
+        LAMBDAS = config['lambdas']
+
     main()

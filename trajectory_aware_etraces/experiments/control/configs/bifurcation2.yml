@@ -1,0 +1,26 @@
+data_dir: data/bifurcation2
+plot_dir: plots
+env_str: "Bifurcation 2"
+env_id: Bifurcation2-v0
+discount: 0.9
+max_episode_len: 50  # Time limit to ensure training/benchmarking doesn't get stuck in infinite loop
+shortest_path: 8  # Tells the code what the optimal discounted return should be (for plotting only)
+
+timesteps: 5_000
+behavior_eps: 0.2
+target_eps: 0.1
+eval_eps: 0.05
+explore_episodes: 10
+vf_noise_std: 0.01
+
+train_trials: 1_000
+test_trials: 1_000
+# Train/test seeds must be different to ensure different data!
+train_seed: 0
+test_seed: 1
+
+lambda_sweep_alphas:
+  Retrace: [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]
+  "Truncated IS": [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7, 0.7, 0.5]
+  "Recursive Retrace": [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7]
+  RBIS: [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.7]

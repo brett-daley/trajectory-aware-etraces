@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import numpy as np
@@ -6,25 +7,20 @@ import yaml
 from trajectory_aware_etraces.experiments.control.learning_curves import load_experiment
 
 
-with open('config.yml', 'r') as f:
-    config = yaml.safe_load(f)
-
-data_dir = config['data_dir']
-
-search = config['grid_search']
-algorithms = search['algorithms']
-lambdas = search['lambdas']
-alphas = search['alphas']
+DATA_DIR = None
+ALGORITHMS = None
+LAMBDAS = None
+ALPHAS = None
 
 
 def main():
     # Grid search uses separate training seeds to avoid biased results
-    root_dir = os.path.join(data_dir, 'train')
+    root_dir = os.path.join(DATA_DIR, 'train')
 
-    for algo in algorithms:
+    for algo in ALGORITHMS:
         print(f"{algo}: ---")
-        for lambd in lambdas:
-            for alpha in alphas:
+        for lambd in LAMBDAS:
+            for alpha in ALPHAS:
                 Ys = load_experiment(root_dir, algo, lambd, alpha)
                 AUCs = np.sum(Ys, axis=1)
 
@@ -37,4 +33,18 @@ def main():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config', type=str)
+    args = parser.parse_args()
+
+    with open(args.config, 'r') as f:
+        config = yaml.safe_load(f)
+        DATA_DIR = config['data_dir']
+
+    with open('configs/.grid_search.yml', 'r') as f:
+        config = yaml.safe_load(f)
+        ALGORITHMS = config['algorithms']
+        LAMBDAS = config['lambdas']
+        ALPHAS = config['alphas']
+
     main()
